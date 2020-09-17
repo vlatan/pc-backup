@@ -6,20 +6,23 @@ from datetime import datetime
 from paths import *
 
 
-def compute_dir_index(path):
+def compute_dir_index(path, ignore=()):
     """ path: path to the directory.
+        ignore: tuple with suffixes of filenames to ignore
         Returns a dictionary with 'file: last modified time'. """
     index = {}
     # traverse the dir
     for root, dirs, filenames in os.walk(path):
         # loop through the files in the current directory
         for f in filenames:
-            # get the file path relative to the dir
-            file_path = os.path.relpath(os.path.join(root, f), path)
-            # get the last modified time of that file
-            mtime = os.path.getmtime(os.path.join(path, file_path))
-            # put them in the index
-            index[file_path] = mtime
+            # if the file doesn't have a suffix we want to ignore
+            if not f.endswith(ignore):
+                # get the file path relative to the dir
+                file_path = os.path.relpath(os.path.join(root, f), path)
+                # get the last modified time of that file
+                mtime = os.path.getmtime(os.path.join(path, file_path))
+                # put them in the index
+                index[file_path] = mtime
 
     # return a dict of files as keys and
     # last modified time as their values
@@ -30,12 +33,21 @@ if __name__ == "__main__":
     # construct filenames with lowercase letters and no white spaces
     json_names = [name.replace(' ', '-').lower() + '.json' for name in dirs]
 
+    # build an exclude string if at all for the aws sync command
+    exclude = ''
+    for strng in ignore:
+        exclude += f'--exclude "*{strng}" '
+    exclude = exclude.rstrip()
+
+    # possible statement to print for logging purposes
+    statements_to_print = []
+
     for i in range(len(dirs)):
         # the path to the folder
         dir_path = root + dirs[i]
 
         # compute the new index for this folder
-        new_index = compute_dir_index(dir_path)
+        new_index = compute_dir_index(dir_path, ignore)
 
         # the old index json file
         json_file = index + json_names[i]
@@ -50,18 +62,22 @@ if __name__ == "__main__":
 
         # if there's a difference
         if new_index != old_index:
-            print(f'Syncing {dirs[i]}... ', end='')
+
             # sync this folder with the bucket
-            os.system(f'aws s3 sync "{dir_path}/" "{bucket}/{dirs[i]}/" \
+            os.system(f'/usr/local/bin/aws s3 sync \
+                "{dir_path}/" "{bucket}/{dirs[i]}/" {exclude} \
                 --storage-class STANDARD_IA --delete --quiet')
-            print('Done.')
+
+            # current date and time
+            time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
+            # append a statement to print later
+            statements_to_print.append(f"Synced '{dirs[i]}' on {time_now}.")
+
             # save/overwrite the json file with the new index
             with open(json_file, 'w') as f:
                 json.dump(new_index, f, indent=4)
-        else:
-            print(f'No changes in {dirs[i]}.')
 
-    # current date and time
-    time_now = datetime.now().strftime('%d.%m.%Y, %H:%M')
-    print(f'Syncing finished at {time_now}.')
-    print('--------------------------------------')
+    if statements_to_print:
+        for statement in statements_to_print:
+            print(statement)
+        print('-----------------------------------------------------')
