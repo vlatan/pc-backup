@@ -13,9 +13,8 @@ and if there are any changes an `aws s3 sync` command is issued.
 installed on your machine, and    
 - Means for scheduling a [cronjob](https://crontab.guru/).
 
-Don't forget to [enable versioning](https://docs.aws.amazon.com/AmazonS3/latest/
-user-guide/enable-versioning.html) and [create a lifecycle policy](https://
-docs.aws.amazon.com/AmazonS3/latest/user-guide/create-lifecycle.html) 
+Don't forget to [enable versioning](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/enable-versioning.html) 
+and [create a lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/create-lifecycle.html) 
 for the noncurrent versions of the objects in your S3 bucket so this setup 
 can be as close to Google Drive or Dropbox as possible.
 
