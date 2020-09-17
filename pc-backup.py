@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # construct filenames with lowercase letters and no white spaces
     json_names = [name.replace(' ', '-').lower() + '.json' for name in dirs]
 
-    # build an exclude string if at all for the aws sync command
+    # build an '--exclude' string if at all for the aws sync command
     exclude = ''
     for strng in ignore:
         exclude += f'--exclude "*{strng}" '
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         # if there's a difference
         if new_index != old_index:
 
-            # sync this folder with the bucket
+            # sync this folder with the same folder in the bucket
             os.system(f'/usr/local/bin/aws s3 sync \
                 "{dir_path}/" "{bucket}/{dirs[i]}/" {exclude} \
                 --storage-class STANDARD_IA --delete --quiet')
