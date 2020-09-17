@@ -2,6 +2,7 @@
 
 import os
 import json
+from datetime import datetime
 from paths import *
 
 
@@ -59,3 +60,8 @@ if __name__ == "__main__":
                 json.dump(new_index, f, indent=4)
         else:
             print(f'No changes in {dirs[i]}.')
+
+    # current date and time
+    time_now = datetime.now().strftime('%d.%m.%Y, %H:%M')
+    print(f'Syncing finished at {time_now}.')
+    print('--------------------------------------')
