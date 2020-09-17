@@ -7,10 +7,12 @@ and if there are any changes an `aws s3 sync` command is issued.
 
 ### Prerequisites
 
-- [AWS Account](https://aws.amazon.com/)    
-- [S3 bucket](https://aws.amazon.com/s3/)   
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) 
-installed on your machine, and    
+- [AWS Account](https://aws.amazon.com/)   
+- [S3 bucket](https://aws.amazon.com/s3/)
+- [IAM user and policy](https://docs.aws.amazon.com/AmazonS3/latest/dev/walkthrough1.html) 
+for programmatic access to the S3 bucket
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+installed on your machine, and
 - Means for scheduling a [cronjob](https://crontab.guru/).
 
 Don't forget to [enable versioning](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/enable-versioning.html) 
