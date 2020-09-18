@@ -37,8 +37,8 @@ dirs = ['music', 'videos', 'documents']
 # path to the directory where you'll store json indexes
 index = '/home/user/john/pc-backup/index/'
 
-# list of filenames/extensions to ignore when syncing
-ignore = ('.out')
+exclude_prefixes = ('__', '~', '.') # exclude hidden files
+exclude_suffixes = ('.out')         # exclude some extensions
 ```
 
 Schedule a cronjob:
