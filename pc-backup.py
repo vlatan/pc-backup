@@ -8,7 +8,7 @@ from paths import *
 
 def compute_dir_index(path, exclude_prefixes=(), exclude_suffixes=()):
     """ path: path to the directory.
-        ignore: tuple with suffixes of filenames to ignore
+        exclude_prefixes, exclude_suffixes: tuples of prefixes and suffixes to ignore
         Returns a dictionary with 'file: last modified time'. """
     index = {}
     # traverse the dir
