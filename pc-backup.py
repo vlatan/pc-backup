@@ -13,6 +13,8 @@ def compute_dir_index(path, exclude_prefixes=(), exclude_suffixes=()):
     index = {}
     # traverse the dir
     for root, dirs, files in os.walk(path):
+        # exclude hidden directories
+        dirs[:] = [d for d in dirs if not d.startswith(exclude_prefixes)]
         # exclude prefixes (hidden files) or/and suffixes (certain extensions)
         files = [f for f in files
                  if not f.startswith(exclude_prefixes)
