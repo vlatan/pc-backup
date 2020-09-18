@@ -25,20 +25,21 @@ can be as close to Google Drive or Dropbox as possible.
 In a separate `paths.py` file define several variables specific for your environment:
 
 ```
-# your s3 bucket
+# your S3 bucket
 bucket = 's3://your-bucket'
 
-# root path to the user
+# path to the user directory
 root = '/home/user/john/'
 
-# directories to sync within the root
+# directories you want to sync within the user directory
 dirs = ['music', 'videos', 'documents']
 
-# path to the directory where you'll store json indexes
+# path to the directory where json indexes will be stored
 index = '/home/user/john/pc-backup/index/'
 
-exclude_prefixes = ('__', '~', '.') # exclude hidden files
-exclude_suffixes = ('.out')         # exclude some extensions
+# define which files/dirs you want to exclude from being tracked for changes if at all
+exclude_prefixes = ('__', '~', '.')     # exclude hidden files
+exclude_suffixes = ('.out')             # exclude some extensions
 ```
 
 Schedule a cronjob:
