@@ -6,23 +6,25 @@ from datetime import datetime
 from paths import *
 
 
-def compute_dir_index(path, ignore=()):
+def compute_dir_index(path, exclude_prefixes=(), exclude_suffixes=()):
     """ path: path to the directory.
         ignore: tuple with suffixes of filenames to ignore
         Returns a dictionary with 'file: last modified time'. """
     index = {}
     # traverse the dir
-    for root, dirs, filenames in os.walk(path):
+    for root, dirs, files in os.walk(path):
+        # exclude prefixes (hidden files) or/and suffixes (certain extensions)
+        files = [f for f in files
+                 if not f.startswith(exclude_prefixes)
+                 and not f.endswith(exclude_suffixes)]
         # loop through the files in the current directory
-        for f in filenames:
-            # if the file doesn't have a suffix we want to ignore
-            if not f.endswith(ignore):
-                # get the file path relative to the dir
-                file_path = os.path.relpath(os.path.join(root, f), path)
-                # get the last modified time of that file
-                mtime = os.path.getmtime(os.path.join(path, file_path))
-                # put them in the index
-                index[file_path] = mtime
+        for f in files:
+            # get the file path relative to the dir
+            file_path = os.path.relpath(os.path.join(root, f), path)
+            # get the last modified time of that file
+            mtime = os.path.getmtime(os.path.join(path, file_path))
+            # put them in the index
+            index[file_path] = mtime
 
     # return a dict of files as keys and
     # last modified time as their values
