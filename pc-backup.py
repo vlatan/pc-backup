@@ -37,6 +37,13 @@ if __name__ == "__main__":
     # construct filenames with lowercase letters and no white spaces
     json_names = [name.replace(' ', '-').lower() + '.json' for name in dirs]
 
+    # build --exclude arguments if at all for the aws sync command
+    exclude = ''
+    for strng in exclude_prefixes:
+        exclude += f'--exclude "{strng}*" '
+    for strng in exclude_suffixes:
+        exclude += f'--exclude "*{strng}" '
+
     # possible statement to print for logging purposes
     statements_to_print = []
 
@@ -62,9 +69,10 @@ if __name__ == "__main__":
         # if there's a difference
         if new_index != old_index:
             # sync this folder with the same folder in the bucket
-            os.system(f'/usr/local/bin/aws s3 sync \
-                "{dir_path}/" "{bucket}/{dirs[i]}/" \
-                --storage-class STANDARD_IA --delete --quiet')
+            command = '/usr/local/bin/aws s3 sync '
+            command += f'"{dir_path}/" "{bucket}/{dirs[i]}/" {exclude}'
+            command += '--storage-class STANDARD_IA --delete --quiet'
+            os.system(command)
 
             # current date and time
             time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
