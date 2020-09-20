@@ -1,9 +1,10 @@
 # PC Backup
 
-PC Backup is a sort of DIY Google Drive/Dropbox that backs up specified folders from your PC 
-to an S3 bucket in a specified intervals via cronjob. It basically computes 
-an index of files along with their timestaps for each folder you want to backup/sync 
-and if there are any changes an `aws s3 sync` command is issued.
+PC Backup is a sort of **DIY Google Drive/Dropbox** that synchronizes 
+specified folders from your PC to an S3 bucket in a specified intervals 
+via cronjob. It basically computes an index of files along with their 
+timestaps for each folder you want to backup/sync and if there are any 
+changes an `aws s3 sync` command is issued.
 
 ### Prerequisites
 
@@ -20,33 +21,35 @@ and [create a lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/user
 for the noncurrent versions of the objects in your S3 bucket so this setup 
 can be as close to Google Drive or Dropbox as possible.
 
-### Instructions
+### Usage
 
 In a separate `paths.py` file define several variables specific for your environment:
 
 ```
-# your S3 bucket
-bucket = 's3://your-bucket'
-
-# path to the user directory
+# root path to the user's directory
 root = '/home/user/john/'
 
-# directories you want to sync within the user directory
-dirs = ['music', 'videos', 'documents']
+# your s3 bucket path
+bucket = 's3://your-bucket/'
 
-# path to the directory where json indexes will be stored
+# directories you want to sync within the user's directory
+dirs = ['music', 'videos', 'documents', 'etc']
+
+# path to the directory where intend to store json index files
 index = '/home/user/john/pc-backup/index/'
 
-# define which files/dirs you want to exclude from being tracked for changes if at all
-exclude_prefixes = ('__', '~', '.')     # exclude hidden files
-exclude_suffixes = ('.out')             # exclude some extensions
+# exclude prefixes (e.g. hidden files)
+exclude_prefixes = ('__', '~', '.')
+
+# exclude suffixes (e.g. files with certain extensions)
+exclude_suffixes = ('.out', 'desktop.ini')
 ```
 
 Schedule a cronjob:
 
 ```
-# run every 5 minutes
-*/5 * * * * cd /home/user/john/pc-backup && /usr/bin/python3.6 pc-backup.py >> pc-backup.out
+# run every minute
+*/1 * * * * cd /home/user/john/pc-backup && /usr/bin/python3.6 pc-backup.py >> pc-backup.out
 ```
 
 ### License
