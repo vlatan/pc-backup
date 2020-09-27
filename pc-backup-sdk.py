@@ -65,7 +65,7 @@ if __name__ == '__main__':
         dir_path, dirs_to_sync, exclude_prefixes, exclude_suffixes)
 
     # the directory's old index
-    old_index = read_json(json_file)
+    old_index = read_json(json_index_file)
 
     # if there's a difference in the indexes (old and new)
     if new_index != old_index:
@@ -84,4 +84,4 @@ if __name__ == '__main__':
         synchronize(data, bucket)
 
         # save/overwrite the json index file
-        save_json(json_file, new_index)
+        save_json(json_index_file, new_index)
