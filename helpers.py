@@ -50,10 +50,9 @@ def compute_diff(new_index, old_index, bucket_files):
     # get keys from indexes, which are in fact the files
     new_index_files = set(new_index.keys())
     old_index_files = set(old_index.keys())
-    bucket_files = old_index_files
-    # if there's bucket
-    if bucket:
-        bucket_files = set(f.key for f in bucket.objects.all())
+    # if there's no bucket file list
+    if not bucket_files:
+        bucket_files = old_index_files
 
     data = {}
     # files present in the S3 bucket but not in the new index
