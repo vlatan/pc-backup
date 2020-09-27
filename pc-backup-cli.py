@@ -3,58 +3,7 @@
 import os
 import json
 from datetime import datetime
-from paths import *
-
-
-def compute_dir_index(path, exclude_prefixes=(), exclude_suffixes=()):
-    """ path: path to the directory.
-        exclude_prefixes: tuple of prefixes to ignore.
-        exclude_suffixes: tuple of suffixes to ignore.
-        Returns a dictionary with 'file: last modified time timestamp'. """
-    index = {}
-    # traverse the dir
-    for root, dirs, files in os.walk(path):
-        # exclude hidden directories
-        dirs[:] = [d for d in dirs if not d.startswith(exclude_prefixes)]
-        # exclude prefixes (hidden files) or/and suffixes (certain extensions)
-        files = [f for f in files
-                 if not f.startswith(exclude_prefixes)
-                 and not f.endswith(exclude_suffixes)]
-        # loop through the files in the current directory
-        for f in files:
-            # get the file path relative to the dir
-            file_path = os.path.relpath(os.path.join(root, f), path)
-            # get the last modified time of that file
-            mtime = os.path.getmtime(os.path.join(path, file_path))
-            # put them in the index
-            index[file_path] = mtime
-
-    # return a dict of files as keys and
-    # last modified time as their values
-    return index
-
-
-def read_json(json_file):
-    """ json_file: a path to json file to read.
-        Returns the content of the file (dict).
-        If there's no such file it returns an empty dict. """
-    # try to read the old index json file
-    try:
-        with open(json_file, 'r') as f:
-            old_index = json.load(f)
-    # if there's no such file the old_index is an empty dict
-    except IOError:
-        old_index = {}
-    return old_index
-
-
-def save_json(json_file, new_index):
-    """ json_file: a path to json file to save/overwrite.
-        new_index: the new content/index for the file (dict).
-        Saves/dumps the new index into a json file.
-        Returns: None. """
-    with open(json_file, 'w') as f:
-        json.dump(new_index, f, indent=4)
+from variables import *
 
 
 def build_sync_excludes(exclude_prefixes=(), exclude_suffixes=()):
