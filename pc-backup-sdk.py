@@ -15,20 +15,28 @@ def bulk_delete_files(files, bucket):
     )
 
 
-def upload_file(file, bucket, storage_class='STANDARD_IA'):
+def upload_file(filename, key, bucket, storage_class='STANDARD_IA'):
     # upload object to S3 bucket
-    bucket.upload_file(Filename=file,
-                       Key=file,
+    bucket.upload_file(Filename=filename,
+                       Key=key,
                        ExtraArgs={'StorageClass': storage_class})
 
 
-def synchronize(data, bucket, storage_class):
+def synchronize(user_root, data, bucket, storage_class='STANDARD_IA'):
     # remove files from S3 bucket
-    bulk_delete_files(data['deleted'], bucket)
+    if data['deleted']:
+        bulk_delete_files(data['deleted'], bucket)
+        print('File(s) deleted:')
+        for f in data['deleted']:
+            print(f)
 
     # upload file to S3 bucket
-    for file in data['created'] + data['modified']:
-        upload_file(file, bucket, storage_class)
+    if data['created'] or data['modified']:
+        print('File(s) uploaded:')
+        for key in data['created'] + data['modified']:
+            filename = f'{user_root}/{key}'
+            upload_file(filename, key, bucket, storage_class)
+            print(key)
 
 
 if __name__ == '__main__':
@@ -52,7 +60,7 @@ if __name__ == '__main__':
         data = compute_diff(new_index, old_index, bucket)
 
         # delete/upload objects
-        synchronize(data, bucket)
+        synchronize(user_root, data, bucket)
 
         # save/overwrite the json index file
         save_json(json_index_file, new_index)
