@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     # the directory's current/new index
     new_index = compute_dir_index(
-        dir_path, dirs_to_sync, exclude_prefixes, exclude_suffixes)
+        user_root, dirs_to_sync, exclude_prefixes, exclude_suffixes)
 
     # the directory's old index
     old_index = read_json(json_index_file)
