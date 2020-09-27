@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from datetime import datetime
 import boto3
 from variables import *
 from helpers import *
@@ -48,11 +47,9 @@ if __name__ == '__main__':
         s3 = boto3.resource('s3')
         # create an instance of the bucket
         bucket = s3.Bucket(bucket_name)
-        # get the bucket files
-        bucket_files = [f.key for f in bucket.objects.all()]
 
         # objects to delete/upload
-        data = compute_diff(new_index, old_index, bucket_files)
+        data = compute_diff(new_index, old_index, bucket)
 
         # delete/upload objects
         synchronize(data, bucket)

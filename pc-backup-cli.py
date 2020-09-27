@@ -74,7 +74,7 @@ if __name__ == "__main__":
         exclude = build_sync_excludes(exclude_prefixes, exclude_suffixes)
 
         # objects to delete/upload
-        data = compute_diff(new_index, old_index, bucket_files=None)
+        data = compute_diff(new_index, old_index, bucket=None)
 
         # within which directories there's a change
         changed_dirs = which_dirs(data)

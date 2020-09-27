@@ -39,7 +39,7 @@ def compute_dir_index(path, dirs_to_sync,
     return index
 
 
-def compute_diff(new_index, old_index, bucket_files):
+def compute_diff(new_index, old_index, bucket):
     """ Computes the differences between the bucket, the
         new index and the old index.
         new_index: newly computed directory index (dict).
@@ -50,9 +50,12 @@ def compute_diff(new_index, old_index, bucket_files):
     # get keys from indexes, which are in fact the files
     new_index_files = set(new_index.keys())
     old_index_files = set(old_index.keys())
-    # if there's no bucket file list
-    if not bucket_files:
+    # if there's no bucket
+    if not bucket:
         bucket_files = old_index_files
+    else:
+        # get the bucket files
+        bucket_files = set(f.key for f in bucket.objects.all())
 
     data = {}
     # files present in the S3 bucket but not in the new index
