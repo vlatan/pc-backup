@@ -39,7 +39,7 @@ def compute_dir_index(path, dirs_to_sync,
     return index
 
 
-def compute_diff(new_index, old_index, bucket):
+def compute_diff(new_index, old_index, bucket_files):
     """ Computes the differences between the bucket, the
         new index and the old index.
         new_index: newly computed directory index (dict).
