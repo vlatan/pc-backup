@@ -26,13 +26,13 @@ def synchronize(user_root, data, bucket, storage_class='STANDARD_IA'):
     # remove files from S3 bucket
     if data['deleted']:
         bulk_delete_files(data['deleted'], bucket)
-        print('File(s) deleted:')
+        print('Deleted:')
         for f in data['deleted']:
             print(f)
 
     # upload file to S3 bucket
     if data['created'] or data['modified']:
-        print('File(s) uploaded:')
+        print('Uploaded:')
         for key in data['created'] + data['modified']:
             filename = f'{user_root}/{key}'
             upload_file(filename, key, bucket, storage_class)

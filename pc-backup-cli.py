@@ -33,7 +33,9 @@ def aws_sync(dir_path, bucket_path, exclude):
 
 
 def which_dirs(data):
-    # figure out # within which directories there's a change
+    """ Figures out within which directories there's a change.
+        data: dictionary of deleted/created/modified files.
+        returns: list of directories with modified content. """
     changed_files = []
     for value in data.values():
         changed_files.extend(value)
@@ -41,8 +43,8 @@ def which_dirs(data):
 
 
 def print_statements(statements_to_print):
-    """ statements_to_print: a list of statements(strings) to print.
-        Prints statements.
+    """ Prints statements.
+        statements_to_print: a list of statements(strings) to print.
         Returns: None. """
     if statements_to_print:
         for statement in statements_to_print:
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         # possible statement to print for logging purposes
         statements_to_print = []
 
-        # build exclude string
+        # prepare '--exclude' arguments if any for the aws sync command
         exclude = build_sync_excludes(exclude_prefixes, exclude_suffixes)
 
         # objects to delete/upload
