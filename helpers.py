@@ -47,12 +47,15 @@ def compute_diff(new_index, old_index, bucket):
         bucket: S3 bucket boto3 instance.
         Returns: Dictionary of deleted/created/modified files. """
 
-    data = {}
-    # get the bucket files
-    bucket_files = set(f.key for f in bucket.objects.all())
     # get keys from indexes, which are in fact the files
     new_index_files = set(new_index.keys())
     old_index_files = set(old_index.keys())
+    bucket_files = old_index_files
+    # if there's bucket
+    if bucket:
+        bucket_files = set(f.key for f in bucket.objects.all())
+
+    data = {}
     # files present in the S3 bucket but not in the new index
     data['deleted'] = list(bucket_files - new_index_files)
     # files present in the new index but not in the S3 bucket
