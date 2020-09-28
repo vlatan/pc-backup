@@ -31,7 +31,7 @@ def aws_sync(dir_path, bucket_path, exclude):
     sync += ['--storage-class', 'STANDARD_IA', '--delete', '--quiet']
 
     # execute the sync command
-    subprocess.run(sync, check=True)
+    subprocess.run(sync, timeout=60, check=True)
 
 
 def which_dirs(data):
@@ -42,16 +42,6 @@ def which_dirs(data):
     for value in data.values():
         changed_files.extend(value)
     return list(set(f.split('/')[0] for f in changed_files))
-
-
-def print_statements(statements_to_print):
-    """ Prints statements.
-        statements_to_print: a list of statements(strings) to print.
-        Returns: None. """
-    if statements_to_print:
-        for statement in statements_to_print:
-            print(statement)
-        print('-' * 53)
 
 
 if __name__ == "__main__":
@@ -91,20 +81,19 @@ if __name__ == "__main__":
             # current date and time
             time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
 
+            # try to sync this folder with the same folder in the bucket
             try:
-                # sync this folder with the same folder in the bucket
                 aws_sync(dir_path, bucket_path, exclude)
-                # append a statement to print later
-                st = f"Synced '{changed_dirs[i]}' on {time_now}."
-                statements_to_print.append(st)
+                print(f"Synced '{changed_dirs[i]}' on {time_now}.")
             except subprocess.CalledProcessError as e:
-                # append a statement to print later
-                st = f"UNABLE to sync '{changed_dirs[i]}' on {time_now}.\n"
-                st += f"The sync command returned exit status {e.returncode}."
-                statements_to_print.append(st)
+                print(f"UNABLE to sync '{changed_dirs[i]}' on {time_now}.")
+                print(f"The sync command returned exit status {e.returncode}.")
+            except subprocess.TimeoutExpired as e:
+                print(f"UNABLE to sync '{changed_dirs[i]}' on {time_now}.")
+                print(f"The sync command timed out after {e.timeout}.")
 
         # save/overwrite the json file with the new index
         save_json(json_index_file, new_index)
 
-        # print statements to log if any
-        print_statements(statements_to_print)
+        # print divider
+        print('-' * 53)
