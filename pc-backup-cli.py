@@ -61,9 +61,6 @@ if __name__ == "__main__":
     # if there's a difference in the indexes (old and new)
     if new_index != old_index:
 
-        # possible statement to print for logging purposes
-        statements_to_print = []
-
         # prepare '--exclude' arguments if any for the aws sync command
         exclude = build_sync_excludes(exclude_prefixes, exclude_suffixes)
 
