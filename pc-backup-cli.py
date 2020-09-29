@@ -31,7 +31,7 @@ def aws_sync(dir_path, bucket_path, exclude):
     sync += ['--storage-class', 'STANDARD_IA', '--delete', '--quiet']
 
     # execute the sync command
-    subprocess.run(sync, timeout=60, check=True)
+    subprocess.run(sync, timeout=80, check=True)
 
 
 def which_dirs(data):
@@ -87,7 +87,7 @@ if __name__ == "__main__":
                 print(f"The sync command returned exit status {e.returncode}.")
             except subprocess.TimeoutExpired as e:
                 print(f"UNABLE to sync '{changed_dirs[i]}' on {time_now}.")
-                print(f"The sync command timed out after {e.timeout}.")
+                print(f"The sync command timed out after {e.timeout} seconds.")
 
         # save/overwrite the json file with the new index
         save_json(json_index_file, new_index)
