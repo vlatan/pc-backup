@@ -12,7 +12,7 @@ def build_sync_excludes(exclude_prefixes=(), exclude_suffixes=()):
         Returns a list with '--exclude' arguments if any. """
     exclude = []
     for prefix in exclude_prefixes:
-        exclude += ['--exclude', f'{prefix}*']
+        exclude += ['--exclude', f'{prefix}*', '--exclude', f'*/{prefix}*']
     for suffix in exclude_suffixes:
         exclude += ['--exclude', f'*{suffix}']
     return exclude
