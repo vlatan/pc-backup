@@ -18,20 +18,38 @@ def build_sync_excludes(exclude_prefixes=(), exclude_suffixes=()):
     return exclude
 
 
-def aws_sync(dir_path, bucket_path, exclude):
-    """ dir_path: the local path to the directory (string).
-        bucket_path: the bucket path to the directory (string).
+def aws_sync(user_root, dir_name, bucket_name, exclude):
+    """ It constructs and runs an aws s3 sync command.
+        user_root: the user's root directory
+        dir_name: the directory name within the user's root.
+        bucket_path: the name of the S3 bucket.
         exclude: --exclude arguments if any (list).
-        It constructs and runs an aws sync command.
         Returns: None. """
 
-    # prepare the sync command
-    sync = ['/usr/local/bin/aws', 's3', 'sync']
-    sync += [f'{dir_path}/', f'{bucket_path}/'] + exclude
-    sync += ['--storage-class', 'STANDARD_IA', '--delete', '--quiet']
+    # the local path to the directory
+    dir_path = f'{user_root}/{dir_name}/'
+    # the bucket prefix
+    bucket_path = f's3://{bucket_name}/{dir_name}/'
 
-    # execute the sync command
-    return subprocess.run(sync, timeout=600, check=True)
+    # prepare the sync command
+    cmd = ['/usr/local/bin/aws', 's3', 'sync']
+    cmd += [dir_path, bucket_path] + exclude
+    cmd += ['--storage-class', 'STANDARD_IA', '--delete', '--quiet']
+
+    # current date and time
+    time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
+
+    # sync the local directory with the bucket directory
+    try:
+        output = subprocess.run(cmd, timeout=600, check=True)
+        if output.returncode == 0:
+            print(f"Synced '{dir_name}' on {time_now}.")
+    except subprocess.CalledProcessError as e:
+        print(f"UNABLE to sync '{dir_name}' on {time_now}.")
+        print(f"The sync command returned exit status {e.returncode}.")
+    except subprocess.TimeoutExpired as e:
+        print(f"UNABLE to sync '{dir_name}' on {time_now}.")
+        print(f"The sync command timed out after {e.timeout} seconds.")
 
 
 def which_dirs(data):
@@ -71,24 +89,8 @@ if __name__ == "__main__":
         changed_dirs = which_dirs(data)
 
         for i in range(len(changed_dirs)):
-            # the local path to the directory
-            dir_path = f'{user_root}/{changed_dirs[i]}'
-            # the bucket path to the directory
-            bucket_path = f's3://{bucket_name}/{changed_dirs[i]}'
-            # current date and time
-            time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
-
             # try to sync this folder with the same folder in the bucket
-            try:
-                output = aws_sync(dir_path, bucket_path, exclude)
-                if output.returncode == 0:
-                    print(f"Synced '{changed_dirs[i]}' on {time_now}.")
-            except subprocess.CalledProcessError as e:
-                print(f"UNABLE to sync '{changed_dirs[i]}' on {time_now}.")
-                print(f"The sync command returned exit status {e.returncode}.")
-            except subprocess.TimeoutExpired as e:
-                print(f"UNABLE to sync '{changed_dirs[i]}' on {time_now}.")
-                print(f"The sync command timed out after {e.timeout} seconds.")
+            aws_sync(user_root, changed_dirs[i], bucket_name, exclude)
 
         # save/overwrite the json file with the new index
         save_json(json_index_file, new_index)
