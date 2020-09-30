@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import subprocess
+from multiprocessing import Pool
 from datetime import datetime
 from variables import *
 from helpers import *
@@ -52,6 +53,12 @@ def aws_sync(user_root, dir_name, bucket_name, exclude):
         print(f"The sync command timed out after {e.timeout} seconds.")
 
 
+def aws_sync_wrapper(args):
+    user_root, dir_name = args[0], args[1]
+    bucket_name, exclude = args[2], args[3]
+    aws_sync(user_root, dir_name, bucket_name, exclude)
+
+
 def which_dirs(data):
     """ Figures out within which directories there's a change.
         data: dictionary of deleted/created/modified files.
@@ -88,9 +95,17 @@ if __name__ == "__main__":
         # within which directories there's a change
         changed_dirs = which_dirs(data)
 
-        for i in range(len(changed_dirs)):
-            # try to sync this folder with the same folder in the bucket
-            aws_sync(user_root, changed_dirs[i], bucket_name, exclude)
+        # lists of arguments equivalent to the number of changed dirs
+        args = [[user_root, dir_name, bucket_name, exclude]
+                for dir_name in changed_dirs]
+
+        # start as many worker processes as there are changed dirs
+        with Pool(processes=len(changed_dirs)) as pool:
+            pool.map(aws_sync_wrapper, args)
+
+        # for i in range(len(changed_dirs)):
+        #     # try to sync this folder with the same folder in the bucket
+        #     pool.aws_sync(user_root, changed_dirs[i], bucket_name, exclude)
 
         # save/overwrite the json file with the new index
         save_json(json_index_file, new_index)
