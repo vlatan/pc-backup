@@ -31,7 +31,7 @@ def aws_sync(dir_path, bucket_path, exclude):
     sync += ['--storage-class', 'STANDARD_IA', '--delete', '--quiet']
 
     # execute the sync command
-    subprocess.run(sync, timeout=80, check=True)
+    return subprocess.run(sync, timeout=120, check=True)
 
 
 def which_dirs(data):
@@ -80,8 +80,9 @@ if __name__ == "__main__":
 
             # try to sync this folder with the same folder in the bucket
             try:
-                aws_sync(dir_path, bucket_path, exclude)
-                print(f"Synced '{changed_dirs[i]}' on {time_now}.")
+                output = aws_sync(dir_path, bucket_path, exclude)
+                if output.returncode == 0:
+                    print(f"Synced '{changed_dirs[i]}' on {time_now}.")
             except subprocess.CalledProcessError as e:
                 print(f"UNABLE to sync '{changed_dirs[i]}' on {time_now}.")
                 print(f"The sync command returned exit status {e.returncode}.")
