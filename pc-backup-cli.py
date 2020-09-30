@@ -31,7 +31,7 @@ def aws_sync(dir_path, bucket_path, exclude):
     sync += ['--storage-class', 'STANDARD_IA', '--delete', '--quiet']
 
     # execute the sync command
-    return subprocess.run(sync, timeout=120, check=True)
+    return subprocess.run(sync, timeout=600, check=True)
 
 
 def which_dirs(data):
