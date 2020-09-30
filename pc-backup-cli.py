@@ -103,10 +103,6 @@ if __name__ == "__main__":
         with Pool(processes=len(changed_dirs)) as pool:
             pool.map(aws_sync_wrapper, args)
 
-        # for i in range(len(changed_dirs)):
-        #     # try to sync this folder with the same folder in the bucket
-        #     pool.aws_sync(user_root, changed_dirs[i], bucket_name, exclude)
-
         # save/overwrite the json file with the new index
         save_json(json_index_file, new_index)
 
