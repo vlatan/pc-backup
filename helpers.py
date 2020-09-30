@@ -50,10 +50,9 @@ def compute_diff(new_index, old_index, bucket):
     # get keys from indexes, which are in fact the files
     new_index_files = set(new_index.keys())
     old_index_files = set(old_index.keys())
-    # if there's no bucket
-    if not bucket:
-        bucket_files = old_index_files
-    else:
+    bucket_files = old_index_files
+    # if there's a bucket
+    if bucket:
         # get the bucket files
         bucket_files = set(f.key for f in bucket.objects.all())
 
