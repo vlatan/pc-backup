@@ -1,42 +1,36 @@
-#!/usr/bin/env python
+#! /usr/bin/env python
 
+import logging
 import boto3
+from botocore.exceptions import ClientError
+from concurrent.futures import ThreadPoolExecutor
 from variables import *
 from helpers import *
 
 
-def bulk_delete_files(files, bucket):
-    # remove objects from S3 bucket
-    bucket.delete_objects(
-        Delete={
-            'Objects': [{'Key': key} for key in files],
-            'Quiet': True
-        }
-    )
-
-
-def upload_file(filename, key, bucket, storage_class='STANDARD_IA'):
-    # upload object to S3 bucket
-    bucket.upload_file(Filename=filename,
-                       Key=key,
-                       ExtraArgs={'StorageClass': storage_class})
-
-
-def synchronize(user_root, data, bucket, storage_class='STANDARD_IA'):
-    # remove files from S3 bucket
-    if data['deleted']:
-        bulk_delete_files(data['deleted'], bucket)
-        print('Deleted:')
-        for f in data['deleted']:
-            print(f)
-
-    # upload file to S3 bucket
-    if data['created'] or data['modified']:
-        print('Uploaded:')
-        for key in data['created'] + data['modified']:
-            filename = f'{user_root}/{key}'
-            upload_file(filename, key, bucket, storage_class)
-            print(key)
+def handle_object(args):
+    """ Delete/upload a file from/to an S3 bucket
+        args: [client, bucket_name, key, filename, storage_class, delete]
+        client: an instance of a boto3 S3 client object
+        bucket_name: the name of the S3 bucket
+        key: an object key
+        filename: local path to file
+        storage_class: the storage class of the object
+        delete: True -> delete object, False -> upload file
+        return: None. """
+    client, bucket_name, key = args[0], args[1], args[2]
+    filename, storage_class, delete = args[3], args[4], args[5]
+    try:
+        if delete:
+            client.delete_object(Bucket=bucket_name,
+                                 Key=key)
+        else:
+            client.upload_file(Filename=filename,
+                               Bucket=bucket_name,
+                               Key=key,
+                               ExtraArgs={'StorageClass': storage_class})
+    except ClientError as e:
+        logging.error(e)
 
 
 if __name__ == '__main__':
@@ -56,11 +50,27 @@ if __name__ == '__main__':
         # create an instance of the bucket
         bucket = s3.Bucket(bucket_name)
 
-        # objects to delete/upload
+        # which objects to delete/upload
         data = compute_diff(new_index, old_index, bucket)
 
-        # delete/upload objects
-        synchronize(user_root, data, bucket)
+        client = boto3.client('s3')
+
+        args = []
+        for key in data['deleted']:
+            args.append([client, bucket_name, key,
+                         f'{user_root}/{key}', 'STANDARD_IA', True])
+        for key in data['created'] or data['modified']:
+            args.append([client, bucket_name, key,
+                         f'{user_root}/{key}', 'STANDARD_IA', False])
+
+        # delete/upload files in parallel
+        with ThreadPoolExecutor(max_workers=len(args)) as executor:
+            executor.map(handle_object, args)
+
+        num_deleted = len(data['deleted'])
+        num_uploaded = len(data['created'] or data['modified'])
+
+        logging.info(f'Deleted: {num_deleted}. Uploaded: {num_uploaded}.')
 
         # save/overwrite the json index file
         save_json(json_index_file, new_index)
