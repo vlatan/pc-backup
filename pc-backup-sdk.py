@@ -45,6 +45,9 @@ if __name__ == '__main__':
     # if there's a difference in the indexes (old and new)
     if new_index != old_index:
 
+        # configure logging, log_file is defined in variables.py
+        logging.basicConfig(filename=log_file, level=logging.DEBUG)
+
         # create S3 resource
         s3 = boto3.resource('s3')
         # create an instance of the bucket
@@ -57,8 +60,7 @@ if __name__ == '__main__':
 
         args = []
         for key in data['deleted']:
-            args.append([client, bucket_name, key,
-                         f'{user_root}/{key}', 'STANDARD_IA', True])
+            args.append([client, bucket_name, key, None, None, True])
         for key in data['created'] or data['modified']:
             args.append([client, bucket_name, key,
                          f'{user_root}/{key}', 'STANDARD_IA', False])
