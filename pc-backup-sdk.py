@@ -78,6 +78,7 @@ if __name__ == '__main__':
                            [args[i][2], args[i][5]] for i in range(len(args))}
 
             uploaded, deleted = 0, 0
+            # inspect completed (finished or canceled) futures/threads
             for future in as_completed(future_keys):
                 key, delete = future_keys[future][0], future_keys[future][1]
                 try:
