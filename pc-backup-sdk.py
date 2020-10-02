@@ -69,7 +69,7 @@ if __name__ == '__main__':
             future_keys = {executor.submit(handle_object, args[i]):
                            [args[i][2], args[i][5]] for i in range(len(args))}
 
-            uploaded, deleted, failed = 0, 0, 0
+            uploaded, deleted = 0, 0
             for future in as_completed(future_keys):
                 key, delete = future_keys[future][0], future_keys[future][1]
                 try:
@@ -79,15 +79,12 @@ if __name__ == '__main__':
                     else:
                         uploaded += 1
                 except Exception as e:
-                    failed += 1
-                    # current date and time
-                    time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
-                    print(f'{key} generated an exception {e} on {time_now}')
+                    print(f'FILE: {key}.')
+                    print(f'EXCEPTION: {e}.')
+                    print('-' * 53)
 
         time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
-        msg = f'Uploaded:{uploaded}. Deleted:{deleted}. '
-        msg += f'Failed:{failed}. Time:{time_now}.'
-        print(msg)
+        print(f'Uploaded:{uploaded}. Deleted:{deleted}. Time:{time_now}.')
         print('=' * 53)
 
         # save/overwrite the json index file
