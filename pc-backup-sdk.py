@@ -48,23 +48,23 @@ if __name__ == '__main__':
         # instantiate an S3 bucket
         bucket = s3.Bucket(bucket_name)
 
-        # which objects to delete/upload
+        # determine which objects to delete/upload
         data = compute_diff(new_index, old_index, bucket)
 
         # save/overwrite the json index file with the fresh new index
         # we're overwriting this early (before the job below finishes)
         # because if there are many and/or huge files for upload/deletion
         # that can take quite some time (longer than the cron interval)
-        # therefore the cron will run this script simultaneously many times
-        # which will upload/delete the same files over and over
+        # therefore this script will run again before it finishes
+        # depending on the cron interval that can happen again and again
+        # which will upload/delete the same files over and over again
         save_json(json_index_file, new_index)
 
         # instantiate an S3 low-level client
         client = s3.meta.client
 
         # construct a list of lists filled with parameters for every S3 key
-        # so we can later easily map the parameters
-        # to the function that handles objects
+        # so we can later easily map the parameters to def that handles objects
         args = []
         for key in data['deleted']:
             args.append([client, bucket_name, key, None, None, True])
