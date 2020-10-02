@@ -51,6 +51,14 @@ if __name__ == '__main__':
         # which objects to delete/upload
         data = compute_diff(new_index, old_index, bucket)
 
+        # save/overwrite the json index file with the fresh new index
+        # we're overwriting this early (before the job below finishes)
+        # because if there are many and/or huge files for upload/deletion
+        # that can take quite some time (longer than the cron interval)
+        # therefore the cron will run this script simultaneously many times
+        # which will upload/delete the same files over and over
+        save_json(json_index_file, new_index)
+
         # instantiate an S3 low-level client
         client = s3.meta.client
 
@@ -86,6 +94,3 @@ if __name__ == '__main__':
         time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
         print(f'Uploaded:{uploaded}. Deleted:{deleted}. Time:{time_now}.')
         print('=' * 53)
-
-        # save/overwrite the json index file
-        save_json(json_index_file, new_index)
