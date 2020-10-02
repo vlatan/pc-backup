@@ -2,6 +2,7 @@
 
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from variables import *
 from helpers import *
 
@@ -43,14 +44,15 @@ if __name__ == '__main__':
 
         # create an S3 resource
         s3 = boto3.resource('s3')
-        # create an instance of the S3 bucket object
+
+        # instantiate an S3 bucket
         bucket = s3.Bucket(bucket_name)
 
         # which objects to delete/upload
         data = compute_diff(new_index, old_index, bucket)
 
-        # instantiate an S3 client object
-        client = boto3.client('s3')
+        # instantiate an S3 low-level client
+        client = s3.meta.client
 
         # construct a list of lists filled with parameters for every S3 key
         # so we can later easily map the parameters
@@ -67,20 +69,26 @@ if __name__ == '__main__':
             future_keys = {executor.submit(handle_object, args[i]):
                            [args[i][2], args[i][5]] for i in range(len(args))}
 
-            deleted, uploaded, failed = 0, 0, 0
+            uploaded, deleted, failed = 0, 0, 0
             for future in as_completed(future_keys):
-                key, job = future_keys[future][0], future_keys[future][1]
+                key, delete = future_keys[future][0], future_keys[future][1]
                 try:
                     output = future.result()
-                    if job:
+                    if delete:
                         deleted += 1
                     else:
                         uploaded += 1
                 except Exception as e:
                     failed += 1
-                    print(f'{key} generated an exception {e}')
+                    # current date and time
+                    time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
+                    print(f'{key} generated an exception {e} on {time_now}')
 
-        print(f'Deleted: {deleted}. Uploaded: {uploaded}. Failed: {failed}')
+        time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
+        msg = f'Uploaded:{uploaded}. Deleted:{deleted}. '
+        msg += f'Failed:{failed}. Time:{time_now}.'
+        print(msg)
+        print('=' * 53)
 
         # save/overwrite the json index file
         save_json(json_index_file, new_index)
