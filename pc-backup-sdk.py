@@ -58,21 +58,22 @@ def aws_sdk_sync(new_index, old_index, user_root,
         # instantiate an S3 low-level client
         client = s3.meta.client
 
-        # construct a list of lists filled with parameters for every key
-        # so we can easily map the parameters for all the keys
-        # to the function that handles objects
-        args = []
+        # construct a list of lists filled with parameters needed
+        # for handling every key so we can easily map the parameters
+        # for all the keys to the function that handles objects
+        super_args = []
         for key in data['deleted']:
-            args.append([client, bucket_name, key, None, None, True])
+            super_args.append([client, bucket_name, key, None, None, True])
         for key in data['created'] or data['modified']:
-            args.append([client, bucket_name, key,
-                         f'{user_root}/{key}', 'STANDARD_IA', False])
+            super_args.append([client, bucket_name, key,
+                               f'{user_root}/{key}', 'STANDARD_IA', False])
 
         # delete/upload files concurrently
-        max_workers = max(len(args), os.cpu_count() + 4)
+        max_workers = max(len(super_args), os.cpu_count() + 4)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_keys = {executor.submit(handle_object, args[i]):
-                           [args[i][2], args[i][5]] for i in range(len(args))}
+            future_keys = {executor.submit(handle_object, super_args[i]):
+                           [super_args[i][2], super_args[i][5]]
+                           for i in range(len(super_args))}
 
             uploaded, deleted = 0, 0
             # inspect completed (finished or canceled) futures/threads
