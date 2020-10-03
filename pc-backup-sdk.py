@@ -1,9 +1,9 @@
 #! /usr/bin/env python3
 
+import os
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from variables import *
 from helpers import *
 
 
@@ -31,6 +31,8 @@ def handle_object(args):
 
 
 if __name__ == '__main__':
+
+    from variables import *
 
     # the directory's current/new index
     new_index = compute_dir_index(
@@ -73,7 +75,8 @@ if __name__ == '__main__':
                          f'{user_root}/{key}', 'STANDARD_IA', False])
 
         # delete/upload files concurrently
-        with ThreadPoolExecutor(max_workers=len(args) + 10) as executor:
+        max_workers = max(len(args), os.cpu_count() + 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_keys = {executor.submit(handle_object, args[i]):
                            [args[i][2], args[i][5]] for i in range(len(args))}
 
