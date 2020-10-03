@@ -88,13 +88,15 @@ if __name__ == '__main__':
                     output = future.result()
                     if delete:
                         deleted += 1
+                        print(f'DELETED: {key}.')
                     else:
                         uploaded += 1
+                        print(f'UPLOADED: {key}.')
                 except Exception as e:
                     print(f'FILE: {key}.')
                     print(f'EXCEPTION: {e}.')
                     print('-' * 53)
 
-        time_now = datetime.now().strftime('%d.%m.%Y at %H:%M:%S')
-        print(f'Uploaded:{uploaded}. Deleted:{deleted}. Time:{time_now}.')
-        print('=' * 53)
+        time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
+        print('-' * 53)
+        print(f'Uploaded: {uploaded}. Deleted: {deleted}. Time: {time_now}.\n')
