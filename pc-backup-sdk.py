@@ -5,6 +5,7 @@ import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from helpers import *
+from variables import *
 
 
 def handle_object(args):
@@ -30,18 +31,10 @@ def handle_object(args):
     return True
 
 
-if __name__ == '__main__':
+def aws_sdk_sync(new_index, old_index, user_root,
+                 bucket_name, json_index_file):
 
-    from variables import *
-
-    # the directory's current/new index
-    new_index = compute_dir_index(
-        user_root, dirs_to_sync, exclude_prefixes, exclude_suffixes)
-
-    # the directory's old index
-    old_index = read_json(json_index_file)
-
-    # if there's a difference in the indexes (old and new)
+    # if there's a difference in the indexes
     if new_index != old_index:
 
         # create an S3 resource
@@ -53,20 +46,21 @@ if __name__ == '__main__':
         # determine which objects to delete/upload
         data = compute_diff(new_index, old_index, bucket)
 
-        # save/overwrite the json index file with the fresh new index
+        # save/overwrite the json index file with the fresh new index.
         # we're overwriting this early (before the job below finishes)
         # because if there are many and/or huge files for upload/deletion
-        # that can take quite some time (longer than the cron interval)
-        # therefore this script will run again before it finishes
+        # that can take quite some time (longer than the cron interval),
+        # therefore this script will run again before it finishes.
         # depending on the cron interval that can happen again and again
-        # which will upload/delete the same files over and over again
+        # which will upload/delete the same files over and over again.
         save_json(json_index_file, new_index)
 
         # instantiate an S3 low-level client
         client = s3.meta.client
 
-        # construct a list of lists filled with parameters for every S3 key
-        # so we can later easily map the parameters to def that handles objects
+        # construct a list of lists filled with parameters for every key
+        # so we can easily map the parameters for all the keys
+        # to the function that handles objects
         args = []
         for key in data['deleted']:
             args.append([client, bucket_name, key, None, None, True])
@@ -85,7 +79,7 @@ if __name__ == '__main__':
             for future in as_completed(future_keys):
                 key, delete = future_keys[future][0], future_keys[future][1]
                 try:
-                    output = future.result()
+                    future.result()
                     if delete:
                         deleted += 1
                         print(f'DELETED: {key}.')
@@ -95,8 +89,22 @@ if __name__ == '__main__':
                 except Exception as e:
                     print(f'FILE: {key}.')
                     print(f'EXCEPTION: {e}.')
-                    print('-' * 53)
 
         time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
         print('-' * 53)
-        print(f'Uploaded: {uploaded}. Deleted: {deleted}. Time: {time_now}.\n')
+        print(f'Uploaded: {uploaded}. Deleted: {deleted}.', end=' ')
+        print(f'Time: {time_now}.\n\n')
+
+
+if __name__ == '__main__':
+
+    # the current/new index
+    new_index = compute_dir_index(user_root, dirs_to_sync,
+                                  exclude_prefixes, exclude_suffixes)
+
+    # the old index
+    old_index = read_json(json_index_file)
+
+    # synchronize
+    aws_sdk_sync(new_index, old_index, user_root,
+                 bucket_name, json_index_file)
