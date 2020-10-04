@@ -1,9 +1,9 @@
 # PC Backup
 
-PC Backup is a sort of **DIY Google Drive/Dropbox** that synchronizes 
+PC Backup is a sort of **DIY Google Drive/Dropbox** solution that synchronizes 
 specified folders from your PC to an S3 bucket in a specified intervals 
 via cronjob. It basically computes an index of files along with their 
-timestamps and if there are any changes from the previous state 
+last modified timestamps and if there are any changes from the previous state 
 it deletes/uploads files from/to the S3 bucket accordingly. It can do 
 this in two ways: via **AWS CLI** or **AWS SDK**.
 
