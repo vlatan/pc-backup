@@ -10,14 +10,9 @@ from variables import *
 
 def handle_object(args):
     """ Delete/upload a file from/to an S3 bucket
-        args: [client, bucket_name, key, filename, storage_class, delete]
-        client: an instance of a boto3 S3 client object
-        bucket_name: the name of the S3 bucket
-        key: an object key
-        filename: local path to file
-        storage_class: the storage class of the object
-        delete: if True delete object, if False upload file
-        return: True """
+        
+        :param args: [client, bucket_name, key, filename, storage_class, delete]
+        :return: True if the file was deleted/uploaded """
     client, bucket_name, key = args[0], args[1], args[2]
     filename, storage_class, delete = args[3], args[4], args[5]
     if delete:
@@ -31,8 +26,53 @@ def handle_object(args):
     return True
 
 
+def execute_threads(super_args):
+    """ Delete/upload files concurrently each in different thread
+        
+        :param super_args: A list of lists each containing args
+                           for handle_object(args)
+        :return: None """
+    max_workers = max(len(super_args), os.cpu_count() + 4)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_keys = {executor.submit(handle_object, super_args[i]):
+                       [super_args[i][2], super_args[i][5]]
+                       for i in range(len(super_args))}
+
+        uploaded, deleted = 0, 0
+        # inspect completed (finished or canceled) futures/threads
+        for future in as_completed(future_keys):
+            key, delete = future_keys[future][0], future_keys[future][1]
+            try:
+                future.result()
+                if delete:
+                    deleted += 1
+                    print(f'DELETED: {key}.')
+                else:
+                    uploaded += 1
+                    print(f'UPLOADED: {key}.')
+            except Exception as e:
+                print(f'FILE: {key}.')
+                print(f'EXCEPTION: {e}.')
+
+    time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
+    print('-' * 53)
+    print(f'Uploaded: {uploaded}. Deleted: {deleted}.', end=' ')
+    print(f'Time: {time_now}.\n\n')
+
+
 def aws_sdk_sync(new_index, old_index, user_root,
                  bucket_name, json_index_file):
+    """ If there's a change in the index create S3
+        resource, bucket and a low-level S3 client,
+        overwrite the json_index_file, create super_args
+        and delete/upload files concurrently
+
+        :param new_index: the new index of files
+        :param old_index: the old index of files
+        :param user_root: the user's home path
+        :param bucket_name: S3 bucket name
+        :param json_index_file: path to the json index file
+        :return: None """
 
     # if there's a difference in the indexes
     if new_index != old_index:
@@ -69,43 +109,16 @@ def aws_sdk_sync(new_index, old_index, user_root,
                                f'{user_root}/{key}', 'STANDARD_IA', False])
 
         # delete/upload files concurrently
-        max_workers = max(len(super_args), os.cpu_count() + 4)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_keys = {executor.submit(handle_object, super_args[i]):
-                           [super_args[i][2], super_args[i][5]]
-                           for i in range(len(super_args))}
-
-            uploaded, deleted = 0, 0
-            # inspect completed (finished or canceled) futures/threads
-            for future in as_completed(future_keys):
-                key, delete = future_keys[future][0], future_keys[future][1]
-                try:
-                    future.result()
-                    if delete:
-                        deleted += 1
-                        print(f'DELETED: {key}.')
-                    else:
-                        uploaded += 1
-                        print(f'UPLOADED: {key}.')
-                except Exception as e:
-                    print(f'FILE: {key}.')
-                    print(f'EXCEPTION: {e}.')
-
-        time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
-        print('-' * 53)
-        print(f'Uploaded: {uploaded}. Deleted: {deleted}.', end=' ')
-        print(f'Time: {time_now}.\n\n')
+        execute_threads(super_args)
 
 
 if __name__ == '__main__':
-
     # the current/new index
     new_index = compute_dir_index(user_root, dirs_to_sync,
                                   exclude_prefixes, exclude_suffixes)
-
     # the old index
     old_index = read_json(json_index_file)
 
-    # synchronize
+    # synchronize with S3
     aws_sdk_sync(new_index, old_index, user_root,
                  bucket_name, json_index_file)
