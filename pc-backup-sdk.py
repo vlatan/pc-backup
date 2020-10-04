@@ -62,7 +62,7 @@ def execute_threads(super_args):
 
 def aws_sdk_sync(new_index, old_index, user_root,
                  bucket_name, json_index_file):
-    """ If there's a change in the file indexes created the needed S3 resources
+    """ If there's a change in the file indexes create the needed S3 resources
         and instances and delete/upload files concurrently.
         new_index: the new index of files
         old_index: the old index of files
@@ -71,18 +71,17 @@ def aws_sdk_sync(new_index, old_index, user_root,
         json_index_file: path to the json index file
         return: None """
 
+    # create an S3 resource
+    s3 = boto3.resource('s3')
+
+    # instantiate an S3 bucket
+    bucket = s3.Bucket(bucket_name)
+
+    # determine which objects to delete/upload
+    data = compute_diff(new_index, old_index, bucket)
+
     # if there's a difference in the indexes
     if new_index != old_index:
-
-        # create an S3 resource
-        s3 = boto3.resource('s3')
-
-        # instantiate an S3 bucket
-        bucket = s3.Bucket(bucket_name)
-
-        # determine which objects to delete/upload
-        data = compute_diff(new_index, old_index, bucket)
-
         # save/overwrite the json index file with the fresh new index.
         # we're overwriting this early (before the job below finishes)
         # because if there are many and/or huge files for upload/deletion
@@ -92,6 +91,13 @@ def aws_sdk_sync(new_index, old_index, user_root,
         # which will upload/delete the same files over and over again.
         save_json(json_index_file, new_index)
 
+    # build a list of all files/keys that need to be handled
+    queue = []
+    for value in data.values():
+        queue += value
+
+    # if there are files to be handled
+    if queue:
         # instantiate an S3 low-level client
         client = s3.meta.client
 
