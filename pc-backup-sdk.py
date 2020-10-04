@@ -9,10 +9,10 @@ from variables import *
 
 
 def handle_object(args):
-    """ Delete/upload a file from/to an S3 bucket
-        
-        :param args: [client, bucket_name, key, filename, storage_class, delete]
-        :return: True if the file was deleted/uploaded """
+    """ Delete/upload a file from/to an S3 bucket.
+        args: [client, bucket_name, key, filename, storage_class, delete]
+        return: True if the file was deleted/uploaded """
+
     client, bucket_name, key = args[0], args[1], args[2]
     filename, storage_class, delete = args[3], args[4], args[5]
     if delete:
@@ -27,16 +27,16 @@ def handle_object(args):
 
 
 def execute_threads(super_args):
-    """ Delete/upload files concurrently each in different thread
-        
-        :param super_args: A list of lists each containing args
-                           for handle_object(args)
-        :return: None """
+    """ Delete/upload files concurrently each in different thread.
+        super_args: A list of lists each containing args for handle_object(args)
+        return: None """
+
     max_workers = max(len(super_args), os.cpu_count() + 4)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_keys = {executor.submit(handle_object, super_args[i]):
-                       [super_args[i][2], super_args[i][5]]
-                       for i in range(len(super_args))}
+        future_keys = {}
+        for i in range(len(super_args)):
+            k = executor.submit(handle_object, super_args[i])
+            future_keys[k] = [super_args[i][2], super_args[i][5]]
 
         uploaded, deleted = 0, 0
         # inspect completed (finished or canceled) futures/threads
@@ -62,17 +62,14 @@ def execute_threads(super_args):
 
 def aws_sdk_sync(new_index, old_index, user_root,
                  bucket_name, json_index_file):
-    """ If there's a change in the index create S3
-        resource, bucket and a low-level S3 client,
-        overwrite the json_index_file, create super_args
-        and delete/upload files concurrently
-
-        :param new_index: the new index of files
-        :param old_index: the old index of files
-        :param user_root: the user's home path
-        :param bucket_name: S3 bucket name
-        :param json_index_file: path to the json index file
-        :return: None """
+    """ If there's a change in the file indexes created the needed S3 resources
+        and instances and delete/upload files concurrently.
+        new_index: the new index of files
+        old_index: the old index of files
+        user_root: the user's home path
+        bucket_name: S3 bucket name
+        json_index_file: path to the json index file
+        return: None """
 
     # if there's a difference in the indexes
     if new_index != old_index:
