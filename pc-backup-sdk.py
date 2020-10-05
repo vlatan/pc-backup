@@ -107,7 +107,7 @@ def aws_sdk_sync(new_index, old_index, user_root,
         super_args = []
         for key in data['deleted']:
             super_args.append([client, bucket_name, key, None, None, True])
-        for key in data['created'] or data['modified']:
+        for key in data['created'] + data['modified']:
             super_args.append([client, bucket_name, key,
                                f'{user_root}/{key}', 'STANDARD_IA', False])
 
