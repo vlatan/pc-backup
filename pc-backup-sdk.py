@@ -91,13 +91,19 @@ def aws_sdk_sync(new_index, old_index, user_root,
         # which will upload/delete the same files over and over again.
         save_json(json_index_file, new_index)
 
-    # build a list of all files/keys that need to be handled
-    queue = []
+    # read the old queue of objects
+    old_queue = read_json(json_queue_file)
+
+    # build a new queue of files/keys that need to be handled
+    new_queue = []
     for value in data.values():
-        queue += value
+        new_queue += value
+
+    # exclude keys that are waiting to be handled in the old queue
+    new_queue = [key for key in new_queue if key not in old_queue]
 
     # if there are files to be handled
-    if queue:
+    if new_queue:
         # instantiate an S3 low-level client
         client = s3.meta.client
 
