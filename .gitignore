@@ -1,4 +1,5 @@
 env/
 logs/
 __pycache__/
+test.py
 variables.py
