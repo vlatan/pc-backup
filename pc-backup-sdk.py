@@ -1,9 +1,11 @@
 #! /usr/bin/env python3
 
 import os
+import sys
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+import atexit
 from helpers import *
 from variables import *
 
@@ -80,30 +82,25 @@ def aws_sdk_sync(new_index, old_index, user_root,
     # determine which objects to delete/upload
     data = compute_diff(new_index, old_index, bucket)
 
-    # if there's a difference in the indexes
-    if new_index != old_index:
-        # save/overwrite the json index file with the fresh new index.
-        # we're overwriting this early (before the job below finishes)
-        # because if there are many and/or huge files for upload/deletion
-        # that can take quite some time (longer than the cron interval),
-        # therefore this script will run again before it finishes.
-        # depending on the cron interval that can happen again and again
-        # which will upload/delete the same files over and over again.
-        save_json(json_index_file, new_index)
-
-    # read the old queue of objects
-    old_queue = read_json(json_queue_file)
-
-    # build a new queue of files/keys that need to be handled
-    new_queue = []
+    # build a list of files/keys that need to be handled
+    keys_to_handle = []
     for value in data.values():
-        new_queue += value
+        keys_to_handle += value
 
-    # exclude keys that are waiting to be handled in the old queue
-    new_queue = [key for key in new_queue if key not in old_queue]
+    # if there are keys/files to be handled
+    if keys_to_handle:
 
-    # if there are files to be handled
-    if new_queue:
+        # if there's a difference in the indexes
+        if new_index != old_index:
+            # save/overwrite the json index file with the fresh new index.
+            # we're overwriting this early (before the job below finishes)
+            # because if there are many and/or huge files for upload/deletion
+            # that can take quite some time (longer than the cron interval),
+            # therefore this script will run again before it finishes.
+            # depending on the cron interval that can happen again and again
+            # which will upload/delete the same files over and over again.
+            save_json(json_index_file, new_index)
+
         # instantiate an S3 low-level client
         client = s3.meta.client
 
@@ -121,7 +118,27 @@ def aws_sdk_sync(new_index, old_index, user_root,
         execute_threads(super_args)
 
 
-if __name__ == '__main__':
+def delete_pid_file(pid_file):
+    # delete the PID file
+    try:
+        os.unlink(pid_file)
+    except FileNotFoundError as e:
+        print(e)
+
+
+def main():
+    # if the PID file exists it means the script is still running
+    # started from the previous cronjob
+    if os.path.isfile(pid_file):
+        # exit, do nothing
+        sys.exit()
+
+    # get the process ID of this script
+    pid = str(os.getpid())
+    # write the PID to file
+    with open(pid_file, 'w') as f:
+        f.write(pid)
+
     # the current/new index
     new_index = compute_dir_index(user_root, dirs_to_sync,
                                   exclude_prefixes, exclude_suffixes)
@@ -131,3 +148,10 @@ if __name__ == '__main__':
     # synchronize with S3
     aws_sdk_sync(new_index, old_index, user_root,
                  bucket_name, json_index_file)
+
+    # remove the PID file
+    atexit.register(delete_pid_file, pid_file)
+
+
+if __name__ == '__main__':
+    main()
