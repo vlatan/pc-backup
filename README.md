@@ -23,7 +23,7 @@ can be as close to Google Drive or Dropbox as possible.
 
 ### Usage
 
-In a separate `constants.py` file define several constants specific for your environment:
+In a separate `constants.py` file define several constants specific to your environment:
 
 ```
 # path to the user's directory
@@ -36,7 +36,7 @@ BUCKET_NAME = 'your-bucket-name'
 DIRS = ['music', 'videos', 'documents', 'etc']
 
 # json index file location
-INDEX_FILE = f'{user_root}/pc-backup/logs/index.json'
+INDEX_FILE = f'{USER_DIR}/pc-backup/logs/index.json'
 
 # prefixes to exclude (e.g. hidden files)
 PREFIXES = ('__', '~', '.')
