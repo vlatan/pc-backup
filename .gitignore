@@ -2,6 +2,6 @@ env/
 logs/
 __pycache__/
 test.py
-variables.py
+constants.py
 helpers.py
 pc-backup-cli.py
