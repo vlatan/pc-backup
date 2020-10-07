@@ -3,3 +3,5 @@ logs/
 __pycache__/
 test.py
 variables.py
+helpers.py
+pc-backup-cli.py
