@@ -7,7 +7,7 @@ import psutil
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from variables import *
+from constants import *
 
 
 def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
