@@ -2,10 +2,10 @@
 
 import os
 import sys
+import psutil
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-import atexit
 from helpers import *
 from variables import *
 
@@ -118,39 +118,33 @@ def aws_sdk_sync(new_index, old_index, user_root,
         execute_threads(super_args)
 
 
-def delete_pid_file(pid_file):
-    # delete the PID file
-    try:
-        os.unlink(pid_file)
-    except FileNotFoundError as e:
-        print(e)
+def is_running():
+    """ Check if this script is already running.
+        return: True if it's running, False otherwise """
+
+    # iterate through all the current processes
+    for q in psutil.process_iter():
+        # if it's a python process
+        if q.name().startswith('python'):
+            # if it's this script but with different PID
+            if len(q.cmdline()) > 1 and sys.argv[0] in q.cmdline()[1] and q.pid != os.getpid():
+                return True
+    return False
 
 
 def main():
-    # if the PID file exists it means the script is still running
-    # started from the previous cronjob
-    if os.path.isfile(pid_file):
-        # exit, do nothing
-        sys.exit()
+    # if this script is NOT already running
+    if not is_running():
 
-    # get the process ID of this script
-    pid = str(os.getpid())
-    # write the PID to file
-    with open(pid_file, 'w') as f:
-        f.write(pid)
+        # the current/new index
+        new_index = compute_dir_index(user_root, dirs_to_sync,
+                                      exclude_prefixes, exclude_suffixes)
+        # the old index
+        old_index = read_json(json_index_file)
 
-    # the current/new index
-    new_index = compute_dir_index(user_root, dirs_to_sync,
-                                  exclude_prefixes, exclude_suffixes)
-    # the old index
-    old_index = read_json(json_index_file)
-
-    # synchronize with S3
-    aws_sdk_sync(new_index, old_index, user_root,
-                 bucket_name, json_index_file)
-
-    # remove the PID file
-    atexit.register(delete_pid_file, pid_file)
+        # synchronize with S3
+        aws_sdk_sync(new_index, old_index, user_root,
+                     bucket_name, json_index_file)
 
 
 if __name__ == '__main__':
