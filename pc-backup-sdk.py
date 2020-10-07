@@ -82,24 +82,8 @@ def aws_sdk_sync(new_index, old_index, user_root,
     # determine which objects to delete/upload
     data = compute_diff(new_index, old_index, bucket)
 
-    # build a list of files/keys that need to be handled
-    keys_to_handle = []
-    for value in data.values():
-        keys_to_handle += value
-
     # if there are keys/files to be handled
-    if keys_to_handle:
-
-        # if there's a difference in the indexes
-        if new_index != old_index:
-            # save/overwrite the json index file with the fresh new index.
-            # we're overwriting this early (before the job below finishes)
-            # because if there are many and/or huge files for upload/deletion
-            # that can take quite some time (longer than the cron interval),
-            # therefore this script will run again before it finishes.
-            # depending on the cron interval that can happen again and again
-            # which will upload/delete the same files over and over again.
-            save_json(json_index_file, new_index)
+    if sum(len(value) for value in data.values()):
 
         # instantiate an S3 low-level client
         client = s3.meta.client
@@ -116,6 +100,11 @@ def aws_sdk_sync(new_index, old_index, user_root,
 
         # delete/upload files concurrently
         execute_threads(super_args)
+
+        # if there's a difference in the indexes
+        if new_index != old_index:
+            # save/overwrite the json index file with the fresh new index
+            save_json(json_index_file, new_index)
 
 
 def is_running():
