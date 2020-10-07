@@ -17,9 +17,13 @@ installed and configured on your machine, and
 - Means for scheduling a [cronjob](https://crontab.guru/).
 
 Don't forget to [enable versioning](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/enable-versioning.html) 
-and [create a lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/create-lifecycle.html) 
+and to [create a lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/create-lifecycle.html) 
 for the noncurrent versions of the objects in your S3 bucket so this setup 
 can be as close to Google Drive or Dropbox as possible.
+
+Additionally you'll need `boto3` (AWS SDK for Python) and `psutil` 
+(cross-platform library for retrieving information on running processes and system 
+utilization in Python) installed.
 
 ### Usage
 
