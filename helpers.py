@@ -4,12 +4,11 @@ import os
 import json
 
 
-def compute_dir_index(path, dirs_to_sync,
-                      exclude_prefixes=(), exclude_suffixes=()):
+def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
     """ path: path to the root directory.
         dirs_to_sync: directories we want to sync within the path.
-        exclude_prefixes: tuple of prefixes to ignore.
-        exclude_suffixes: tuple of suffixes to ignore.
+        prefixes: tuple of prefixes to ignore.
+        suffixes: tuple of suffixes to ignore.
         returns a dictionary with files and their last modified time'. """
     index = {}
     # traverse the path
@@ -22,12 +21,12 @@ def compute_dir_index(path, dirs_to_sync,
             dirs[:] = [d for d in dirs if d in dirs_to_sync]
         else:
             # exclude hidden directories
-            dirs[:] = [d for d in dirs if not d.startswith(exclude_prefixes)]
+            dirs[:] = [d for d in dirs if not d.startswith(prefixes)]
             # exclude prefixes (hidden files)
             # and suffixes (certain extensions)
-            files = [f for f in files
-                     if not f.startswith(exclude_prefixes)
-                     and not f.endswith(exclude_suffixes)]
+            files[:] = [f for f in files
+                        if not f.startswith(prefixes)
+                        and not f.endswith(suffixes)]
         # loop through the files in the current directory
         for f in files:
             # get the file path relative to the dir
@@ -47,14 +46,10 @@ def compute_diff(new_index, old_index, bucket):
         bucket: S3 bucket boto3 instance.
         Returns: Dictionary of deleted/created/modified files. """
 
-    # get keys from indexes, which are in fact the files
+    # get keys/files from indexes and the bucket
     new_index_files = set(new_index.keys())
     old_index_files = set(old_index.keys())
-    bucket_files = old_index_files
-    # if there's a bucket
-    if bucket:
-        # get the bucket files
-        bucket_files = set(f.key for f in bucket.objects.all())
+    bucket_files = set(f.key for f in bucket.objects.all())
 
     data = {}
     # files present in the S3 bucket but not in the new index
