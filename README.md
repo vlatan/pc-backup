@@ -4,8 +4,7 @@ PC Backup is a sort of **DIY Google Drive/Dropbox** solution that synchronizes
 specified folders from your PC to an S3 bucket in a specified intervals 
 via cronjob. It basically computes an index of files along with their 
 last modified timestamps and if there are any changes from the previous state 
-it deletes/uploads files from/to the S3 bucket accordingly. It can do 
-this in two ways: via **AWS CLI** or **AWS SDK**.
+it deletes/uploads files from/to the S3 bucket accordingly.
 
 ### Prerequisites
 
@@ -24,26 +23,26 @@ can be as close to Google Drive or Dropbox as possible.
 
 ### Usage
 
-In a separate `variables.py` file define several variables specific for your environment:
+In a separate `constants.py` file define several constants specific for your environment:
 
 ```
 # path to the user's directory
-user_root = '/home/user/john'
+USER_DIR = '/home/user/john'
 
 # your s3 bucket name
-bucket_name = 'your-bucket-name'
+BUCKET_NAME = 'your-bucket-name'
 
 # the names of the directories you want to track and sync in the user's home directory
-dirs_to_sync = ['music', 'videos', 'documents', 'etc']
+DIRS = ['music', 'videos', 'documents', 'etc']
 
 # json index file location
-json_index_file = f'{user_root}/pc-backup/logs/index.json'
+INDEX_FILE = f'{user_root}/pc-backup/logs/index.json'
 
-# exclude prefixes (e.g. hidden files)
-exclude_prefixes = ('__', '~', '.')
+# prefixes to exclude (e.g. hidden files)
+PREFIXES = ('__', '~', '.')
 
-# exclude suffixes (e.g. files with certain extensions)
-exclude_suffixes = ('.out', .crdownload', '.part', '.partial', 'desktop.ini')
+# suffixes to exclude (e.g. files with certain extensions)
+SUFFIXES = ('.log', '.out', '.crdownload', '.tmp', '.part', '.partial', 'desktop.ini')
 ```
 
 Schedule a cronjob:
