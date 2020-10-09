@@ -54,7 +54,7 @@ Schedule a cronjob:
 
 ```
 # run every minute
-*/1 * * * * cd /home/user/john/pc-backup && ./pc-backup-sdk.py >> logs/pc-backup.out 2>&1
+*/1 * * * * cd /home/user/john/pc-backup && ./backup.py >> logs/backup.out 2>&1
 ```
 
 ### License
