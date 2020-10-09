@@ -21,9 +21,10 @@ and to [create a lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/u
 for the noncurrent versions of the objects in your S3 bucket so this setup 
 can be as close to Google Drive or Dropbox as possible.
 
-Additionally you'll need `boto3` (AWS SDK for Python) and `psutil` 
-(cross-platform library for retrieving information on running processes and system 
-utilization in Python) installed.
+Additionally you'll need:  
+- [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SDK for Python), and  
+- [psutil](https://pypi.org/project/psutil/) (cross-platform library for retrieving information on running processes and system 
+utilization in Python)
 
 ### Usage
 
