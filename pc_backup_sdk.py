@@ -17,6 +17,7 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
         prefixes: tuple of prefixes to ignore
         suffixes: tuple of suffixes to ignore
         return: a dictionary with files and their last modified time """
+
     index = {}
     # traverse the path
     for root, dirs, files in os.walk(path):
@@ -209,10 +210,13 @@ def is_running():
 def main():
     # if this script is NOT already running
     if not is_running():
+
         # compute the current/new index
         new_index = compute_dir_index(USER_DIR, DIRS, PREFIXES, SUFFIXES)
+
         # get the old index
         old_index = read_json(INDEX_FILE)
+
         # synchronize with S3
         aws_sdk_sync(new_index, old_index, USER_DIR, BUCKET_NAME, INDEX_FILE)
 
