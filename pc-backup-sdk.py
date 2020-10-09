@@ -11,11 +11,12 @@ from constants import *
 
 
 def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
-    """ path: path to the root directory.
-        dirs_to_sync: directories we want to sync within the path.
-        prefixes: tuple of prefixes to ignore.
-        suffixes: tuple of suffixes to ignore.
-        returns a dictionary with files and their last modified time'. """
+    """ Computes a directory's index of files and their last modified times.
+        path: path to the root directory
+        dirs_to_sync: directories we want to sync within the path
+        prefixes: tuple of prefixes to ignore
+        suffixes: tuple of suffixes to ignore
+        return: a dictionary with files and their last modified time """
     index = {}
     # traverse the path
     for root, dirs, files in os.walk(path):
@@ -45,12 +46,12 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
 
 
 def compute_diff(new_index, old_index, bucket):
-    """ Computes the differences between the bucket, the
+    """ Computes the differences between the S3 bucket, the
         new index and the old index.
-        new_index: newly computed directory index (dict).
-        old_index: old directory index from a json file (dict).
+        new_index: newly computed directory index (dict)
+        old_index: old directory index from a json file (dict)
         bucket: S3 bucket boto3 instance.
-        Returns: Dictionary of deleted/created/modified files. """
+        return: dictionary of deleted/created/modified files """
 
     # get keys/files from indexes and the bucket
     new_index_files = set(new_index.keys())
@@ -71,9 +72,11 @@ def compute_diff(new_index, old_index, bucket):
 
 
 def read_json(json_file):
-    """ json_file: a path to json file to read.
-        Returns the content of the file (dict).
-        If there's no such file it returns an empty dict. """
+    """ Reads a json file.
+        json_file: a path to json file to read
+        return: the content of the file (dict).
+        If there's no such file it returns an empty dict """
+
     # try to read the old index json file
     try:
         with open(json_file, 'r') as f:
@@ -85,10 +88,11 @@ def read_json(json_file):
 
 
 def save_json(json_file, new_index):
-    """ json_file: a path to json file to save/overwrite.
-        new_index: the new content/index for the file (dict).
-        Saves/dumps the new index into a json file.
-        Returns: None. """
+    """ Saves/overwrites a json file.
+        json_file: a path to json file to save/overwrite
+        new_index: the new content/index for the file (dict)
+        return: None """
+
     with open(json_file, 'w') as f:
         json.dump(new_index, f, indent=4)
 
@@ -142,7 +146,7 @@ def execute_threads(super_args):
     time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
     print('-' * 53)
     print(f'Uploaded: {uploaded}. Deleted: {deleted}.', end=' ')
-    print(f'Time: {time_now}.\n\n')
+    print(f'Time: {time_now}.\n')
 
 
 def aws_sdk_sync(new_index, old_index, user_dir,
