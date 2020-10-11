@@ -23,26 +23,30 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
     for root, dirs, files in os.walk(path):
         # if first level directory
         if root == path:
-            # ignore files in the first level root
+            # ignore all files in the first level root
             files[:] = []
-            # include only folders we want to sync
+            # include only directories we want to sync
             dirs[:] = [d for d in dirs if d in dirs_to_sync]
         else:
             # exclude hidden directories
             dirs[:] = [d for d in dirs if not d.startswith(prefixes)]
-            # exclude prefixes (hidden files)
-            # and suffixes (certain extensions)
-            files[:] = [f for f in files
-                        if not f.startswith(prefixes)
+            # exclude files with certain prefixes/suffixes
+            # exclude files that are in the middle of copy/paste operation
+            files[:] = [f for f in files if
+                        not f.startswith(prefixes)
                         and not f.endswith(suffixes)]
         # loop through the files in the current directory
         for f in files:
-            # get the file path relative to the dir
-            file_path = os.path.relpath(os.path.join(root, f), path)
-            # get the last modified time of that file
-            mtime = os.path.getmtime(os.path.join(path, file_path))
-            # put the file in the index
-            index[file_path] = mtime
+            # get the file's path relative to the USER_DIR
+            rel_file_path = os.path.relpath(os.path.join(root, f), path)
+            # get the file's full path (joined with the USER_DIR)
+            full_file_path = os.path.join(path, rel_file_path)
+            # if the file is NOT in the middle of a copy/paste operation
+            if read_file(full_file_path):
+                # get the last modified time of the file
+                mtime = os.path.getmtime(full_file_path)
+                # put the file in the index with the relative path and mtime
+                index[rel_file_path] = mtime
     return index
 
 
@@ -72,6 +76,18 @@ def compute_diff(new_index, old_index, bucket):
     return data
 
 
+def read_file(fpath):
+    """ Tries to open a file for reading.
+        fpath: path to file
+        return: True if file opens, False otherwise """
+
+    try:
+        with open(fpath, 'r'):
+            return True
+    except OSError:
+        return False
+
+
 def read_json(json_file):
     """ Reads a json file.
         json_file: a path to json file to read
@@ -83,7 +99,7 @@ def read_json(json_file):
         with open(json_file, 'r') as f:
             old_index = json.load(f)
     # if there's no such file the old_index is an empty dict
-    except IOError:
+    except OSError:
         old_index = {}
     return old_index
 
@@ -150,8 +166,8 @@ def execute_threads(super_args):
     print(f'Time: {time_now}.\n')
 
 
-def aws_sdk_sync(new_index, old_index, user_dir,
-                 bucket_name, json_index_file):
+def aws_sync(new_index, old_index, user_dir,
+             bucket_name, json_index_file):
     """ If there's a change in the file indexes create the needed S3 resources
         and instances and delete/upload files concurrently.
         new_index: the new index of files
@@ -218,7 +234,7 @@ def main():
         old_index = read_json(INDEX_FILE)
 
         # synchronize with S3
-        aws_sdk_sync(new_index, old_index, USER_DIR, BUCKET_NAME, INDEX_FILE)
+        aws_sync(new_index, old_index, USER_DIR, BUCKET_NAME, INDEX_FILE)
 
 
 if __name__ == '__main__':
