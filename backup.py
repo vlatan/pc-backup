@@ -42,7 +42,7 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
             # get the file's full path (joined with the USER_DIR)
             full_file_path = os.path.join(path, rel_file_path)
             # if the file is NOT in the middle of a copy/paste operation
-            if read_file(full_file_path):
+            if can_read_file(full_file_path):
                 # get the last modified time of the file
                 mtime = os.path.getmtime(full_file_path)
                 # put the file in the index with the relative path and mtime
@@ -76,42 +76,15 @@ def compute_diff(new_index, old_index, bucket):
     return data
 
 
-def read_file(fpath):
+def can_read_file(fpath):
     """ Tries to open a file for reading.
         fpath: path to file
         return: True if file opens, False otherwise """
-
     try:
         with open(fpath, 'r'):
             return True
     except OSError:
         return False
-
-
-def read_json(json_file):
-    """ Reads a json file.
-        json_file: a path to json file to read
-        return: the content of the file (dict).
-        If there's no such file it returns an empty dict """
-
-    # try to read the old index json file
-    try:
-        with open(json_file, 'r') as f:
-            old_index = json.load(f)
-    # if there's no such file the old_index is an empty dict
-    except OSError:
-        old_index = {}
-    return old_index
-
-
-def save_json(json_file, new_index):
-    """ Saves/overwrites a json file.
-        json_file: a path to json file to save/overwrite
-        new_index: the new content/index for the file (dict)
-        return: None """
-
-    with open(json_file, 'w') as f:
-        json.dump(new_index, f, indent=4)
 
 
 def handle_object(args):
@@ -206,7 +179,8 @@ def aws_sync(new_index, old_index, user_dir,
         execute_threads(super_args)
 
         # save/overwrite the json index file with the fresh new index
-        save_json(json_index_file, new_index)
+        with open(json_index_file, 'w') as f:
+            json.dump(new_index, f, indent=4)
 
 
 def is_running():
@@ -231,7 +205,8 @@ def main():
         new_index = compute_dir_index(USER_DIR, DIRS, PREFIXES, SUFFIXES)
 
         # get the old index
-        old_index = read_json(INDEX_FILE)
+        with open(INDEX_FILE, 'r') as f:
+            old_index = json.load(f)
 
         # synchronize with S3
         aws_sync(new_index, old_index, USER_DIR, BUCKET_NAME, INDEX_FILE)
