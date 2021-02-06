@@ -10,28 +10,56 @@ from datetime import datetime
 from constants import *
 
 
-def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
-    """ Computes a directory's index of files and their last modified times.
-        path: path to the root directory
-        dirs_to_sync: directories we want to sync within the path
-        prefixes: tuple of prefixes to ignore
-        suffixes: tuple of suffixes to ignore
-        return: a dictionary with files and their last modified time """
+def main():
+    # if this script/file is NOT already running
+    if not is_running():
+        # compute the current/new index
+        new_index = compute_dir_index(USER_DIR, DIRS, PREFIXES, SUFFIXES)
+        # get the old index
+        with open(INDEX_FILE, 'r') as f:
+            old_index = json.load(f)
+        # synchronize with S3
+        aws_sync(new_index, old_index, USER_DIR, BUCKET_NAME, INDEX_FILE)
 
+
+def is_running():
+    """
+    Check if this script is already running.
+    return: True if it's running, False otherwise
+    """
+
+    # iterate through all the current processes
+    for q in psutil.process_iter():
+        # if it's a python process
+        if q.name().startswith('python'):
+            # if it's this script but with different PID
+            if len(q.cmdline()) > 1 and sys.argv[0] in q.cmdline()[1] and q.pid != os.getpid():
+                return True
+    return False
+
+
+def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
+    """
+    Computes a directory's index of files and their last modified times.
+    path: path to the root directory
+    dirs_to_sync: directories we want to sync within the path
+    prefixes: tuple of prefixes to ignore
+    suffixes: tuple of suffixes to ignore
+    return: a dictionary with files and their last modified time
+    """
     index = {}
     # traverse the path
     for root, dirs, files in os.walk(path):
         # if first level directory
         if root == path:
-            # ignore all files in the first level root
+            # ignore all files in the root directory
             files[:] = []
             # include only directories we want to sync
             dirs[:] = [d for d in dirs if d in dirs_to_sync]
         else:
-            # exclude hidden directories
+            # exclude directories with certain prefixes
             dirs[:] = [d for d in dirs if not d.startswith(prefixes)]
             # exclude files with certain prefixes/suffixes
-            # exclude files that are in the middle of copy/paste operation
             files[:] = [f for f in files if
                         not f.startswith(prefixes)
                         and not f.endswith(suffixes)]
@@ -50,36 +78,12 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
     return index
 
 
-def compute_diff(new_index, old_index, bucket):
-    """ Computes the differences between the S3 bucket, the
-        new index and the old index.
-        new_index: newly computed directory index (dict)
-        old_index: old directory index from a json file (dict)
-        bucket: S3 bucket boto3 instance.
-        return: dictionary of deleted/created/modified files """
-
-    # get keys/files from indexes and the bucket
-    new_index_files = set(new_index.keys())
-    old_index_files = set(old_index.keys())
-    bucket_files = set(f.key for f in bucket.objects.all())
-
-    data = {}
-    # files present in the S3 bucket but not in the new index
-    data['deleted'] = list(bucket_files - new_index_files)
-    # files present in the new index but not in the S3 bucket
-    data['created'] = list(new_index_files - bucket_files)
-    # files present both in the new index and the old index
-    # but with different last modified times
-    common_files = old_index_files.intersection(new_index_files)
-    data['modified'] = [f for f in common_files if new_index[f] != old_index[f]]
-
-    return data
-
-
 def can_read_file(fpath):
-    """ Tries to open a file for reading.
-        fpath: path to file
-        return: True if file opens, False otherwise """
+    """
+    Tries to open a file for reading.
+    fpath: path to file
+    return: True if file opens, False otherwise
+    """
     try:
         with open(fpath, 'r'):
             return True
@@ -87,68 +91,18 @@ def can_read_file(fpath):
         return False
 
 
-def handle_object(args):
-    """ Delete/upload a file from/to an S3 bucket.
-        args: [client, bucket_name, key, filename, storage_class, delete]
-        return: True if the file was deleted/uploaded """
-
-    client, bucket_name, key = args[0], args[1], args[2]
-    filename, storage_class, delete = args[3], args[4], args[5]
-    if delete:
-        client.delete_object(Bucket=bucket_name,
-                             Key=key)
-    else:
-        client.upload_file(Filename=filename,
-                           Bucket=bucket_name,
-                           Key=key,
-                           ExtraArgs={'StorageClass': storage_class})
-    return True
-
-
-def execute_threads(super_args):
-    """ Delete/upload files concurrently each in different thread.
-        super_args: A list of lists each containing args for handle_object(args)
-        return: None """
-
-    max_workers = max(len(super_args), os.cpu_count() + 4)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_keys = {}
-        for i in range(len(super_args)):
-            k = executor.submit(handle_object, super_args[i])
-            future_keys[k] = [super_args[i][2], super_args[i][5]]
-
-        uploaded, deleted = 0, 0
-        # inspect completed (finished or canceled) futures/threads
-        for future in as_completed(future_keys):
-            key, delete = future_keys[future][0], future_keys[future][1]
-            try:
-                future.result()
-                if delete:
-                    deleted += 1
-                    print(f'DELETED: {key}.')
-                else:
-                    uploaded += 1
-                    print(f'UPLOADED: {key}.')
-            except Exception as e:
-                print(f'FILE: {key}.')
-                print(f'EXCEPTION: {e}.')
-
-    time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
-    print('-' * 53)
-    print(f'Uploaded: {uploaded}. Deleted: {deleted}.', end=' ')
-    print(f'Time: {time_now}.\n')
-
-
 def aws_sync(new_index, old_index, user_dir,
              bucket_name, json_index_file):
-    """ If there's a change in the file indexes create the needed S3 resources
-        and instances and delete/upload files concurrently.
-        new_index: the new index of files
-        old_index: the old index of files
-        user_dir: the user's home path
-        bucket_name: S3 bucket name
-        json_index_file: path to the json index file
-        return: None """
+    """
+    If there's a change in the file indexes create the needed S3 resources
+    and instances and delete/upload files concurrently.
+    new_index: the new index of files
+    old_index: the old index of files
+    user_dir: the user's home path
+    bucket_name: S3 bucket name
+    json_index_file: path to the json index file
+    return: None 
+    """
 
     # if there's a difference in the indexes
     if new_index != old_index:
@@ -183,33 +137,86 @@ def aws_sync(new_index, old_index, user_dir,
             json.dump(new_index, f, indent=4)
 
 
-def is_running():
-    """ Check if this script is already running.
-        return: True if it's running, False otherwise """
+def compute_diff(new_index, old_index, bucket):
+    """
+    Computes the differences between the S3 bucket, the
+    new index and the old index.
+    new_index: newly computed directory index (dict)
+    old_index: old directory index from a json file (dict)
+    bucket: S3 bucket boto3 instance.
+    return: dictionary of deleted/created/modified files
+    """
 
-    # iterate through all the current processes
-    for q in psutil.process_iter():
-        # if it's a python process
-        if q.name().startswith('python'):
-            # if it's this script but with different PID
-            if len(q.cmdline()) > 1 and sys.argv[0] in q.cmdline()[1] and q.pid != os.getpid():
-                return True
-    return False
+    # get keys/files from indexes and the bucket
+    new_index_files = set(new_index.keys())
+    old_index_files = set(old_index.keys())
+    bucket_files = set(f.key for f in bucket.objects.all())
+
+    data = {}
+    # files present in the S3 bucket but not in the new index
+    data['deleted'] = list(bucket_files - new_index_files)
+    # files present in the new index but not in the S3 bucket
+    data['created'] = list(new_index_files - bucket_files)
+    # files present both in the new index and the old index
+    # but with different last modified times
+    common_files = old_index_files.intersection(new_index_files)
+    data['modified'] = [f for f in common_files if new_index[f] != old_index[f]]
+
+    return data
 
 
-def main():
-    # if this script is NOT already running
-    if not is_running():
+def execute_threads(super_args):
+    """
+    Delete/upload files concurrently each in different thread.
+    super_args: A list of lists each containing args for handle_object(args)
+    return: None
+    """
+    max_workers = max(len(super_args), os.cpu_count() + 4)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_keys = {}
+        for i in range(len(super_args)):
+            k = executor.submit(handle_object, super_args[i])
+            future_keys[k] = [super_args[i][2], super_args[i][5]]
 
-        # compute the current/new index
-        new_index = compute_dir_index(USER_DIR, DIRS, PREFIXES, SUFFIXES)
+        uploaded, deleted = 0, 0
+        # inspect completed (finished or canceled) futures/threads
+        for future in as_completed(future_keys):
+            key, delete = future_keys[future][0], future_keys[future][1]
+            try:
+                future.result()
+                if delete:
+                    deleted += 1
+                    print(f'DELETED: {key}.')
+                else:
+                    uploaded += 1
+                    print(f'UPLOADED: {key}.')
+            except Exception as e:
+                print(f'FILE: {key}.')
+                print(f'EXCEPTION: {e}.')
 
-        # get the old index
-        with open(INDEX_FILE, 'r') as f:
-            old_index = json.load(f)
+    time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
+    print('-' * 53)
+    print(f'Uploaded: {uploaded}. Deleted: {deleted}.', end=' ')
+    print(f'Time: {time_now}.\n')
 
-        # synchronize with S3
-        aws_sync(new_index, old_index, USER_DIR, BUCKET_NAME, INDEX_FILE)
+
+def handle_object(args):
+    """
+    Delete/upload a file from/to an S3 bucket.
+    args: [client, bucket_name, key, filename, storage_class, delete]
+    return: True if the file was deleted/uploaded
+    """
+    client, bucket_name, key = args[0], args[1], args[2]
+    filename, storage_class, delete = args[3], args[4], args[5]
+    if delete:
+        client.delete_object(Bucket=bucket_name,
+                             Key=key)
+    else:
+        client.upload_file(Filename=filename,
+                           Bucket=bucket_name,
+                           Key=key,
+                           ExtraArgs={'StorageClass': storage_class})
+    return True
 
 
 if __name__ == '__main__':
