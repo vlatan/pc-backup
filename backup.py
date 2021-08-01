@@ -7,19 +7,19 @@ import psutil
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from constants import *
+from dotenv import load_dotenv
 
 
 def main():
     # if this script/file is NOT already running
     if not is_running():
         # compute the current/new index
-        new_index = compute_dir_index(USER_DIR, DIRS, PREFIXES, SUFFIXES)
+        new_index = compute_dir_index(USER_HOME, DIRS, PREFIXES, SUFFIXES)
         # get the old index
         with open(INDEX_FILE, 'r') as f:
             old_index = json.load(f)
         # synchronize with S3
-        aws_sync(new_index, old_index, USER_DIR, BUCKET_NAME, INDEX_FILE)
+        aws_sync(new_index, old_index, USER_HOME, BUCKET_NAME, INDEX_FILE)
 
 
 def is_running():
@@ -65,9 +65,9 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
                         and not f.endswith(suffixes)]
         # loop through the files in the current directory
         for f in files:
-            # get the file's path relative to the USER_DIR
+            # get the file's path relative to the USER_HOME
             rel_file_path = os.path.relpath(os.path.join(root, f), path)
-            # get the file's full path (joined with the USER_DIR)
+            # get the file's full path (joined with the USER_HOME)
             full_file_path = os.path.join(path, rel_file_path)
             # if the file is NOT in the middle of a copy/paste operation
             if can_read_file(full_file_path):
@@ -91,14 +91,14 @@ def can_read_file(fpath):
         return False
 
 
-def aws_sync(new_index, old_index, user_dir,
+def aws_sync(new_index, old_index, user_home,
              bucket_name, json_index_file):
     """
     If there's a change in the file indexes create the needed S3 resources
     and instances and delete/upload files concurrently.
     new_index: the new index of files
     old_index: the old index of files
-    user_dir: the user's home path
+    user_home: the user's home path
     bucket_name: S3 bucket name
     json_index_file: path to the json index file
     return: None
@@ -127,7 +127,7 @@ def aws_sync(new_index, old_index, user_dir,
             super_args.append([client, bucket_name, key, None, None, True])
         for key in data['created'] + data['modified']:
             super_args.append([client, bucket_name, key,
-                               f'{user_dir}/{key}', 'STANDARD_IA', False])
+                               f'{user_home}/{key}', 'STANDARD_IA', False])
 
         # delete/upload files concurrently
         execute_threads(super_args)
@@ -220,4 +220,14 @@ def handle_object(args):
 
 
 if __name__ == '__main__':
+    # load enviroment variables
+    load_dotenv()
+    USER_HOME = os.environ.get('USER_HOME')
+    BUCKET_NAME = os.environ.get('BUCKET_NAME')
+    DIRS = os.environ.get('DIRS')
+    INDEX_FILE = USER_HOME + os.environ.get('INDEX_FILE')
+    PREFIXES = os.environ.get('PREFIXES')
+    SUFFIXES = os.environ.get('SUFFIXES')
+
+    # run the script
     main()
