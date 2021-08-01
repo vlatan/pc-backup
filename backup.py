@@ -79,30 +79,21 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
                         and not f.endswith(suffixes)]
         # loop through the files in the current directory
         for f in files:
-            # get the file's path relative to the USER_HOME
-            rel_file_path = os.path.relpath(os.path.join(root, f), path)
-            # get the file's full path (joined with the USER_HOME)
-            full_file_path = os.path.join(path, rel_file_path)
-            # if the file is NOT in the middle of a copy/paste operation
-            if can_read_file(full_file_path):
-                # get the last modified time of the file
-                mtime = os.path.getmtime(full_file_path)
-                # put the file in the index with the relative path and mtime
-                index[rel_file_path] = mtime
+            # make sure the file is accessible
+            try:
+                # get the file's path relative to the USER_HOME
+                rel_file_path = os.path.relpath(os.path.join(root, f), path)
+                # get the file's full path (joined with the USER_HOME)
+                full_file_path = os.path.join(path, rel_file_path)
+                # try to open the file to make sure it's not in the middle of copy/paste
+                with open(full_file_path, 'r'):
+                    # get the last modified time of the file
+                    mtime = os.path.getmtime(full_file_path)
+                    # put the file in the index with the relative path and mtime
+                    index[rel_file_path] = mtime
+            except OSError:
+                continue
     return index
-
-
-def can_read_file(fpath):
-    """
-    Tries to open a file for reading.
-    fpath: path to file
-    return: True if file opens, False otherwise
-    """
-    try:
-        with open(fpath, 'r'):
-            return True
-    except OSError:
-        return False
 
 
 def aws_sync(data, user_home, bucket_name, json_index_file):
