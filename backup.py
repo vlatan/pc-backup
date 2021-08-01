@@ -27,11 +27,8 @@ def main():
 
             # if files have been deleted/created/modified
             if new_index != old_index:
-                # determine which objects to delete/upload
-                data = compute_diff(new_index, old_index, BUCKET_NAME)
-
                 # synchronize with S3 (delete/upload files from/to s3 bucket)
-                aws_sync(data, USER_HOME, BUCKET_NAME, INDEX_FILE)
+                aws_sync(new_index, old_index, USER_HOME, BUCKET_NAME)
 
                 # save/overwrite the json index file with the fresh new index
                 json.dump(new_index, f, indent=4)
@@ -96,7 +93,7 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
     return index
 
 
-def aws_sync(data, user_home, bucket_name, json_index_file):
+def aws_sync(new_index, old_index, user_home, bucket_name):
     """
     Create the needed S3 resources and instances and
     delete/upload files concurrently.
@@ -114,6 +111,9 @@ def aws_sync(data, user_home, bucket_name, json_index_file):
 
     # instantiate an S3 low-level client
     client = s3.meta.client
+
+    # determine which objects to delete/upload
+    data = compute_diff(new_index, old_index, bucket)
 
     # construct a list of lists filled with parameters needed
     # for handling every key so we can easily map the parameters
