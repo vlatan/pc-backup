@@ -14,6 +14,7 @@ def main():
     """
     If there's a change in the directories
     delete/upload files from/to s3 bucket.
+    return: None
     """
     # if this script/file is NOT already running
     if not is_running():
@@ -29,7 +30,7 @@ def main():
                 # determine which objects to delete/upload
                 data = compute_diff(new_index, old_index, BUCKET_NAME)
 
-                # synchronize with S3
+                # synchronize with S3 (delete/upload files from/to s3 bucket)
                 aws_sync(data, USER_HOME, BUCKET_NAME, INDEX_FILE)
 
                 # save/overwrite the json index file with the fresh new index
