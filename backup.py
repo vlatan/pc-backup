@@ -12,7 +12,8 @@ from dotenv import load_dotenv
 
 def main():
     """
-    If there's a change in the directories delete/upload files.
+    If there's a change in the directories
+    delete/upload files from/to s3 bucket.
     """
     # if this script/file is NOT already running
     if not is_running():
