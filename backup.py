@@ -11,6 +11,9 @@ from dotenv import load_dotenv
 
 
 def main():
+    """
+    If there's a change in the directories delete/upload files.
+    """
     # if this script/file is NOT already running
     if not is_running():
         # compute the current/new index
@@ -18,8 +21,17 @@ def main():
         # get the old index
         with open(INDEX_FILE, 'r') as f:
             old_index = json.load(f)
-        # synchronize with S3
-        aws_sync(new_index, old_index, USER_HOME, BUCKET_NAME, INDEX_FILE)
+
+        if new_index != old_index:
+            # determine which objects to delete/upload
+            data = compute_diff(new_index, old_index, BUCKET_NAME)
+
+            # synchronize with S3
+            aws_sync(data, USER_HOME, BUCKET_NAME, INDEX_FILE)
+
+            # save/overwrite the json index file with the fresh new index
+            with open(INDEX_FILE, 'w') as f:
+                json.dump(new_index, f, indent=4)
 
 
 def is_running():
@@ -27,7 +39,6 @@ def is_running():
     Check if this script is already running.
     return: True if it's running, False otherwise
     """
-
     # iterate through all the current processes
     for q in psutil.process_iter():
         # if it's a python process
@@ -91,50 +102,37 @@ def can_read_file(fpath):
         return False
 
 
-def aws_sync(new_index, old_index, user_home,
-             bucket_name, json_index_file):
+def aws_sync(data, user_home, bucket_name, json_index_file):
     """
-    If there's a change in the file indexes create the needed S3 resources
-    and instances and delete/upload files concurrently.
-    new_index: the new index of files
-    old_index: the old index of files
+    Create the needed S3 resources and instances and
+    delete/upload files concurrently.
+    data: dictionary of deleted, new and modified files
     user_home: the user's home path
     bucket_name: S3 bucket name
     json_index_file: path to the json index file
     return: None
     """
+    # create an S3 resource
+    s3 = boto3.resource('s3')
 
-    # if there's a difference in the indexes
-    if new_index != old_index:
+    # instantiate an S3 bucket
+    bucket = s3.Bucket(bucket_name)
 
-        # create an S3 resource
-        s3 = boto3.resource('s3')
+    # instantiate an S3 low-level client
+    client = s3.meta.client
 
-        # instantiate an S3 bucket
-        bucket = s3.Bucket(bucket_name)
+    # construct a list of lists filled with parameters needed
+    # for handling every key so we can easily map the parameters
+    # for all the keys to the function that handles objects
+    super_args = []
+    for key in data['deleted']:
+        super_args.append([client, bucket_name, key, None, None, True])
+    for key in data['created'] + data['modified']:
+        super_args.append([client, bucket_name, key,
+                           f'{user_home}/{key}', 'STANDARD_IA', False])
 
-        # determine which objects to delete/upload
-        data = compute_diff(new_index, old_index, bucket)
-
-        # instantiate an S3 low-level client
-        client = s3.meta.client
-
-        # construct a list of lists filled with parameters needed
-        # for handling every key so we can easily map the parameters
-        # for all the keys to the function that handles objects
-        super_args = []
-        for key in data['deleted']:
-            super_args.append([client, bucket_name, key, None, None, True])
-        for key in data['created'] + data['modified']:
-            super_args.append([client, bucket_name, key,
-                               f'{user_home}/{key}', 'STANDARD_IA', False])
-
-        # delete/upload files concurrently
-        execute_threads(super_args)
-
-        # save/overwrite the json index file with the fresh new index
-        with open(json_index_file, 'w') as f:
-            json.dump(new_index, f, indent=4)
+    # delete/upload files concurrently
+    execute_threads(super_args)
 
 
 def compute_diff(new_index, old_index, bucket):
@@ -146,7 +144,6 @@ def compute_diff(new_index, old_index, bucket):
     bucket: S3 bucket boto3 instance.
     return: dictionary of deleted/created/modified files
     """
-
     # get keys/files from indexes and the bucket
     new_index_files = set(new_index.keys())
     old_index_files = set(old_index.keys())
