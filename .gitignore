@@ -1,6 +1,8 @@
 env/
+venv/
 logs/
 __pycache__/
+.vscode/
 test.py
 constants.py
 helpers.py
