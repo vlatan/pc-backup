@@ -79,7 +79,7 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
                         and not f.endswith(suffixes)]
         # loop through the files in the current directory
         for f in files:
-            # make sure the file is accessible
+            # try to record the file's mtime
             try:
                 # get the file's path relative to the USER_HOME
                 rel_file_path = os.path.relpath(os.path.join(root, f), path)
