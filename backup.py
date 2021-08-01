@@ -19,18 +19,19 @@ def main():
     # if this script/file is NOT already running
     if not is_running():
         # get the old index
-        with open(INDEX_FILE, 'r+') as f:
+        with open(INDEX_FILE, 'r') as f:
             old_index = json.load(f)
 
-            # compute the current/new index
-            new_index = compute_dir_index(USER_HOME, DIRS, PREFIXES, SUFFIXES)
+        # compute the current/new index
+        new_index = compute_dir_index(USER_HOME, DIRS, PREFIXES, SUFFIXES)
 
-            # if files have been deleted/created/modified
-            if new_index != old_index:
-                # synchronize with S3 (delete/upload files from/to s3 bucket)
-                aws_sync(new_index, old_index, USER_HOME, BUCKET_NAME)
+        # if files have been deleted/created/modified
+        if new_index != old_index:
+            # synchronize with S3 (delete/upload files from/to s3 bucket)
+            aws_sync(new_index, old_index, USER_HOME, BUCKET_NAME)
 
-                # save/overwrite the json index file with the fresh new index
+            # save/overwrite the json index file with the fresh new index
+            with open(INDEX_FILE, 'w') as f:
                 json.dump(new_index, f, indent=4)
 
 
@@ -82,7 +83,8 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
                 rel_file_path = os.path.relpath(os.path.join(root, f), path)
                 # get the file's full path (joined with the USER_HOME)
                 full_file_path = os.path.join(path, rel_file_path)
-                # try to open the file to make sure it's not in the middle of copy/paste
+                # try to open the file to make sure
+                # it's not in the middle of a copy/paste operation
                 with open(full_file_path, 'r'):
                     # get the last modified time of the file
                     mtime = os.path.getmtime(full_file_path)
