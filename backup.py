@@ -101,7 +101,7 @@ def aws_sync(new_index, old_index, user_dir,
     user_dir: the user's home path
     bucket_name: S3 bucket name
     json_index_file: path to the json index file
-    return: None 
+    return: None
     """
 
     # if there's a difference in the indexes
@@ -153,13 +153,13 @@ def compute_diff(new_index, old_index, bucket):
     bucket_files = set(f.key for f in bucket.objects.all())
 
     data = {}
-    # files present in the S3 bucket but not in the new index
+    # files found in the S3 bucket but not in the new index (deleted files)
     data['deleted'] = list(bucket_files - new_index_files)
-    # files present in the new index but not in the S3 bucket
+    # files found in the new index but not in the S3 bucket (new files)
     data['created'] = list(new_index_files - bucket_files)
-    # files present both in the new index and the old index
-    # but with different last modified times
+    # files found both in the new index and the old index (common files)
     common_files = old_index_files.intersection(new_index_files)
+    # common files with different last modified times (modified files)
     data['modified'] = [f for f in common_files if new_index[f] != old_index[f]]
 
     return data
