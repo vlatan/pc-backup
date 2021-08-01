@@ -16,21 +16,22 @@ def main():
     """
     # if this script/file is NOT already running
     if not is_running():
-        # compute the current/new index
-        new_index = compute_dir_index(USER_HOME, DIRS, PREFIXES, SUFFIXES)
         # get the old index
-        with open(INDEX_FILE, 'r') as f:
+        with open(INDEX_FILE, 'r+') as f:
             old_index = json.load(f)
 
-        if new_index != old_index:
-            # determine which objects to delete/upload
-            data = compute_diff(new_index, old_index, BUCKET_NAME)
+            # compute the current/new index
+            new_index = compute_dir_index(USER_HOME, DIRS, PREFIXES, SUFFIXES)
 
-            # synchronize with S3
-            aws_sync(data, USER_HOME, BUCKET_NAME, INDEX_FILE)
+            # if files have been deleted/created/modified
+            if new_index != old_index:
+                # determine which objects to delete/upload
+                data = compute_diff(new_index, old_index, BUCKET_NAME)
 
-            # save/overwrite the json index file with the fresh new index
-            with open(INDEX_FILE, 'w') as f:
+                # synchronize with S3
+                aws_sync(data, USER_HOME, BUCKET_NAME, INDEX_FILE)
+
+                # save/overwrite the json index file with the fresh new index
                 json.dump(new_index, f, indent=4)
 
 
