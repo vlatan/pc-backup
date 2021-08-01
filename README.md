@@ -22,10 +22,9 @@ for the noncurrent versions of the objects in your S3 bucket so this setup
 can be as close to Google Drive or Dropbox as possible.
 
 Additionally you'll need:
-- [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SDK for Python), and
-- [psutil](https://pypi.org/project/psutil/) (cross-platform library for retrieving information on running processes and system
-utilization in Python)
-- [dotenv](https://pypi.org/project/python-dotenv/) (reads key-value pairs from a .env file and can set them as environment variables)
+- [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SDK for Python)
+- [psutil](https://pypi.org/project/psutil/) (cross-platform library for retrieving information on running processes and system utilization in Python)
+- [dotenv](https://pypi.org/project/python-dotenv/) (reads key-value pairs from an .env file and can set them as environment variables)
 - more in `requirements.txt`
 
 ### Usage
