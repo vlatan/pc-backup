@@ -217,10 +217,10 @@ if __name__ == '__main__':
     load_dotenv()
     USER_HOME = os.environ.get('USER_HOME')
     BUCKET_NAME = os.environ.get('BUCKET_NAME')
-    DIRS = os.environ.get('DIRS')
+    DIRS = os.environ.get('DIRS').split(', ')
     INDEX_FILE = USER_HOME + os.environ.get('INDEX_FILE')
-    PREFIXES = os.environ.get('PREFIXES')
-    SUFFIXES = os.environ.get('SUFFIXES')
+    PREFIXES = tuple(os.environ.get('PREFIXES').split(', '))
+    SUFFIXES = tuple(os.environ.get('SUFFIXES').split(', '))
 
     # run the script
     main()
