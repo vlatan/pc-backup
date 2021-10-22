@@ -164,7 +164,9 @@ def execute_threads(super_args):
     super_args: A list of lists each containing args for handle_object(args)
     return: None
     """
-    max_workers = max(len(super_args), os.cpu_count() + 4)
+    # ubuntu freezes when too many files are uploaded in parallel
+    # max_workers = max(len(super_args), os.cpu_count() + 4)
+    max_workers = os.cpu_count() + 4
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_keys = {}
         for i in range(len(super_args)):
