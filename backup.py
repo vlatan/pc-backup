@@ -146,12 +146,12 @@ def compute_diff(new_index, old_index, bucket):
     bucket_files = set(f.key for f in bucket.objects.all())
 
     data = {}
-    # files found in the S3 bucket but not in the new index (deleted files)
+    # files in the S3 bucket but not in the new index (deleted files) - sets difference
     data['deleted'] = list(bucket_files - new_index_files)
-    # files found in the new index but not in the S3 bucket (new files)
+    # files in the new index but not in the S3 bucket (new files) - sets diference
     data['created'] = list(new_index_files - bucket_files)
-    # files found both in the new index and the old index (common files)
-    common_files = old_index_files.intersection(new_index_files)
+    # files both in the old index and the new index (common files) - sets intersection
+    common_files = old_index_files & new_index_files
     # common files with different last modified times (modified files)
     data['modified'] = [f for f in common_files if new_index[f] != old_index[f]]
 
