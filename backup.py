@@ -19,7 +19,7 @@ def main():
     # if this script/file is NOT already running
     if not is_running():
         # get the old index
-        with open(INDEX_FILE, 'r') as f:
+        with open(INDEX_FILE, "r") as f:
             old_index = json.load(f)
 
         # compute the current/new index
@@ -31,7 +31,7 @@ def main():
             aws_sync(new_index, old_index, USER_HOME, BUCKET_NAME)
 
             # save/overwrite the json index file with the fresh new index
-            with open(INDEX_FILE, 'w') as f:
+            with open(INDEX_FILE, "w") as f:
                 json.dump(new_index, f, indent=4)
 
 
@@ -43,9 +43,13 @@ def is_running():
     # iterate through all the current processes
     for q in psutil.process_iter():
         # if it's a python process
-        if q.name().startswith('python'):
+        if q.name().startswith("python"):
             # if it's this script but with different PID
-            if len(q.cmdline()) > 1 and sys.argv[0] in q.cmdline()[1] and q.pid != os.getpid():
+            if (
+                len(q.cmdline()) > 1
+                and sys.argv[0] in q.cmdline()[1]
+                and q.pid != os.getpid()
+            ):
                 return True
     return False
 
@@ -72,9 +76,11 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
             # exclude directories with certain prefixes
             dirs[:] = [d for d in dirs if not d.startswith(prefixes)]
             # exclude files with certain prefixes/suffixes
-            files[:] = [f for f in files if
-                        not f.startswith(prefixes)
-                        and not f.endswith(suffixes)]
+            files[:] = [
+                f
+                for f in files
+                if not f.startswith(prefixes) and not f.endswith(suffixes)
+            ]
         # loop through the files in the current directory
         for f in files:
             # try to record the file's mtime
@@ -85,7 +91,7 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
                 full_file_path = os.path.join(path, rel_file_path)
                 # try to open the file to make sure
                 # it's not in the middle of a copy/paste operation
-                with open(full_file_path, 'r'):
+                with open(full_file_path, "r"):
                     # get the last modified time of the file
                     mtime = os.path.getmtime(full_file_path)
                     # put the file in the index with the relative path and mtime
@@ -106,7 +112,7 @@ def aws_sync(new_index, old_index, user_home, bucket_name):
     return: None
     """
     # create an S3 resource
-    s3 = boto3.resource('s3')
+    s3 = boto3.resource("s3")
 
     # instantiate an S3 bucket
     bucket = s3.Bucket(bucket_name)
@@ -121,11 +127,12 @@ def aws_sync(new_index, old_index, user_home, bucket_name):
     # for handling every key so we can easily map the parameters
     # for all the keys to the function that handles objects
     super_args = []
-    for key in data['deleted']:
+    for key in data["deleted"]:
         super_args.append([client, bucket_name, key, None, None, True])
-    for key in data['created'] + data['modified']:
-        super_args.append([client, bucket_name, key,
-                           f'{user_home}/{key}', 'STANDARD_IA', False])
+    for key in data["created"] + data["modified"]:
+        super_args.append(
+            [client, bucket_name, key, f"{user_home}/{key}", "STANDARD_IA", False]
+        )
 
     # delete/upload files concurrently
     execute_threads(super_args)
@@ -147,13 +154,13 @@ def compute_diff(new_index, old_index, bucket):
 
     data = {}
     # files in the S3 bucket but not in the new index (deleted files) - sets difference
-    data['deleted'] = list(bucket_files - new_index_files)
+    data["deleted"] = list(bucket_files - new_index_files)
     # files in the new index but not in the S3 bucket (new files) - sets diference
-    data['created'] = list(new_index_files - bucket_files)
+    data["created"] = list(new_index_files - bucket_files)
     # files both in the old index and the new index (common files) - sets intersection
     common_files = old_index_files & new_index_files
     # common files with different last modified times (modified files)
-    data['modified'] = [f for f in common_files if new_index[f] != old_index[f]]
+    data["modified"] = [f for f in common_files if new_index[f] != old_index[f]]
 
     return data
 
@@ -181,18 +188,18 @@ def execute_threads(super_args):
                 future.result()
                 if delete:
                     deleted += 1
-                    print(f'DELETED: {key}.')
+                    print(f"DELETED: {key}.")
                 else:
                     uploaded += 1
-                    print(f'UPLOADED: {key}.')
+                    print(f"UPLOADED: {key}.")
             except Exception as e:
-                print(f'FILE: {key}.')
-                print(f'EXCEPTION: {e}.')
+                print(f"FILE: {key}.")
+                print(f"EXCEPTION: {e}.")
 
-    time_now = datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
-    print('-' * 53)
-    print(f'Uploaded: {uploaded}. Deleted: {deleted}.', end=' ')
-    print(f'Time: {time_now}.\n')
+    time_now = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+    print("-" * 53)
+    print(f"Uploaded: {uploaded}. Deleted: {deleted}.", end=" ")
+    print(f"Time: {time_now}.\n")
 
 
 def handle_object(args):
@@ -204,25 +211,26 @@ def handle_object(args):
     client, bucket_name, key = args[0], args[1], args[2]
     filename, storage_class, delete = args[3], args[4], args[5]
     if delete:
-        client.delete_object(Bucket=bucket_name,
-                             Key=key)
+        client.delete_object(Bucket=bucket_name, Key=key)
     else:
-        client.upload_file(Filename=filename,
-                           Bucket=bucket_name,
-                           Key=key,
-                           ExtraArgs={'StorageClass': storage_class})
+        client.upload_file(
+            Filename=filename,
+            Bucket=bucket_name,
+            Key=key,
+            ExtraArgs={"StorageClass": storage_class},
+        )
     return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # load enviroment variables
     load_dotenv()
-    USER_HOME = os.environ.get('USER_HOME')
-    BUCKET_NAME = os.environ.get('BUCKET_NAME')
-    DIRS = os.environ.get('DIRS').split(', ')
-    INDEX_FILE = USER_HOME + os.environ.get('INDEX_FILE')
-    PREFIXES = tuple(os.environ.get('PREFIXES').split(', '))
-    SUFFIXES = tuple(os.environ.get('SUFFIXES').split(', '))
+    USER_HOME = os.environ.get("USER_HOME")
+    BUCKET_NAME = os.environ.get("BUCKET_NAME")
+    DIRS = os.environ.get("DIRS").split(", ")
+    INDEX_FILE = USER_HOME + os.environ.get("INDEX_FILE")
+    PREFIXES = tuple(os.environ.get("PREFIXES").split(", "))
+    SUFFIXES = tuple(os.environ.get("SUFFIXES").split(", "))
 
     # run the script
     main()
