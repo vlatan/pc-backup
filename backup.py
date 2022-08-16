@@ -25,23 +25,27 @@ def main():
     delete/upload files from/to s3 bucket.
     return: None
     """
-    # if this script/file is NOT already running
-    if not is_running():
-        # get the old index
-        with open(INDEX_FILE, "r") as f:
-            old_index = json.load(f)
+    # if this script/file is already running exit
+    if is_running():
+        sys.exit()
 
-        # compute the current/new index
-        new_index = compute_index()
+    # get the old index
+    with open(INDEX_FILE, "r") as f:
+        old_index = json.load(f)
 
-        # if files have been deleted/created/modified
-        if new_index != old_index:
-            # synchronize with S3 (delete/upload files from/to s3 bucket)
-            aws_sync(new_index, old_index)
+    # compute the current/new index
+    new_index = compute_index()
 
-            # save/overwrite the json index file with the fresh new index
-            with open(INDEX_FILE, "w") as f:
-                json.dump(new_index, f, indent=4)
+    # if no change in index exit
+    if new_index == old_index:
+        sys.exit()
+
+    # synchronize with S3 (delete/upload files from/to s3 bucket)
+    aws_sync(new_index, old_index)
+
+    # save/overwrite the json index file with the fresh new index
+    with open(INDEX_FILE, "w") as f:
+        json.dump(new_index, f, indent=4)
 
 
 def is_running():
