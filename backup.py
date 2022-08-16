@@ -32,7 +32,7 @@ def main():
             old_index = json.load(f)
 
         # compute the current/new index
-        new_index = compute_dir_index()
+        new_index = compute_index()
 
         # if files have been deleted/created/modified
         if new_index != old_index:
@@ -63,7 +63,7 @@ def is_running():
     return False
 
 
-def compute_dir_index():
+def compute_index():
     """
     Computes a directory's index of files and their last modified times.
     path: path to the root directory
