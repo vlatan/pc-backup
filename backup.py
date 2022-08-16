@@ -9,6 +9,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from dotenv import load_dotenv
 
+# load enviroment variables
+load_dotenv()
+USER_HOME = os.environ.get("USER_HOME")
+BUCKET_NAME = os.environ.get("BUCKET_NAME")
+DIRS = os.environ.get("DIRS").split(", ")
+INDEX_FILE = USER_HOME + os.environ.get("INDEX_FILE")
+PREFIXES = tuple(os.environ.get("PREFIXES").split(", "))
+SUFFIXES = tuple(os.environ.get("SUFFIXES").split(", "))
+
 
 def main():
     """
@@ -23,12 +32,12 @@ def main():
             old_index = json.load(f)
 
         # compute the current/new index
-        new_index = compute_dir_index(USER_HOME, DIRS, PREFIXES, SUFFIXES)
+        new_index = compute_dir_index()
 
         # if files have been deleted/created/modified
         if new_index != old_index:
             # synchronize with S3 (delete/upload files from/to s3 bucket)
-            aws_sync(new_index, old_index, USER_HOME, BUCKET_NAME)
+            aws_sync(new_index, old_index)
 
             # save/overwrite the json index file with the fresh new index
             with open(INDEX_FILE, "w") as f:
@@ -54,7 +63,7 @@ def is_running():
     return False
 
 
-def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
+def compute_dir_index():
     """
     Computes a directory's index of files and their last modified times.
     path: path to the root directory
@@ -65,30 +74,30 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
     """
     index = {}
     # traverse the path
-    for root, dirs, files in os.walk(path):
+    for root, dirs, files in os.walk(USER_HOME):
         # if first level directory
-        if root == path:
+        if root == USER_HOME:
             # ignore all files in the root directory
             files[:] = []
             # include only directories we want to sync
-            dirs[:] = [d for d in dirs if d in dirs_to_sync]
+            dirs[:] = [d for d in dirs if d in DIRS]
         else:
             # exclude directories with certain prefixes
-            dirs[:] = [d for d in dirs if not d.startswith(prefixes)]
+            dirs[:] = [d for d in dirs if not d.startswith(PREFIXES)]
             # exclude files with certain prefixes/suffixes
             files[:] = [
                 f
                 for f in files
-                if not f.startswith(prefixes) and not f.endswith(suffixes)
+                if not f.startswith(PREFIXES) and not f.endswith(SUFFIXES)
             ]
         # loop through the files in the current directory
         for f in files:
             # try to record the file's mtime
             try:
                 # get the file's path relative to the USER_HOME
-                rel_file_path = os.path.relpath(os.path.join(root, f), path)
+                rel_file_path = os.path.relpath(os.path.join(root, f), USER_HOME)
                 # get the file's full path (joined with the USER_HOME)
-                full_file_path = os.path.join(path, rel_file_path)
+                full_file_path = os.path.join(USER_HOME, rel_file_path)
                 # try to open the file to make sure
                 # it's not in the middle of a copy/paste operation
                 with open(full_file_path, "r"):
@@ -101,7 +110,7 @@ def compute_dir_index(path, dirs_to_sync, prefixes, suffixes):
     return index
 
 
-def aws_sync(new_index, old_index, user_home, bucket_name):
+def aws_sync(new_index, old_index):
     """
     Create the needed S3 resources and instances and
     delete/upload files concurrently.
@@ -115,7 +124,7 @@ def aws_sync(new_index, old_index, user_home, bucket_name):
     s3 = boto3.resource("s3")
 
     # instantiate an S3 bucket
-    bucket = s3.Bucket(bucket_name)
+    bucket = s3.Bucket(BUCKET_NAME)
 
     # instantiate an S3 low-level client
     client = s3.meta.client
@@ -128,10 +137,10 @@ def aws_sync(new_index, old_index, user_home, bucket_name):
     # for all the keys to the function that handles objects
     super_args = []
     for key in data["deleted"]:
-        super_args.append([client, bucket_name, key, None, None, True])
+        super_args.append([client, BUCKET_NAME, key, None, None, True])
     for key in data["created"] + data["modified"]:
         super_args.append(
-            [client, bucket_name, key, f"{user_home}/{key}", "STANDARD_IA", False]
+            [client, BUCKET_NAME, key, f"{USER_HOME}/{key}", "STANDARD_IA", False]
         )
 
     # delete/upload files concurrently
@@ -223,14 +232,4 @@ def handle_object(args):
 
 
 if __name__ == "__main__":
-    # load enviroment variables
-    load_dotenv()
-    USER_HOME = os.environ.get("USER_HOME")
-    BUCKET_NAME = os.environ.get("BUCKET_NAME")
-    DIRS = os.environ.get("DIRS").split(", ")
-    INDEX_FILE = USER_HOME + os.environ.get("INDEX_FILE")
-    PREFIXES = tuple(os.environ.get("PREFIXES").split(", "))
-    SUFFIXES = tuple(os.environ.get("SUFFIXES").split(", "))
-
-    # run the script
     main()
