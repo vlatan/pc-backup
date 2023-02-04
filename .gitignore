@@ -5,7 +5,4 @@ venv/
 logs/
 __pycache__/
 .vscode/
-test.py
-constants.py
-helpers.py
-pc-backup-cli.py
+config.json
