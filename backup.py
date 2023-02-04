@@ -90,8 +90,8 @@ async def compute_index():
     # gather compute_dir_index tasks
     tasks = []
     for directory in DIRECTORIES:
-        corotuine = asyncio.to_thread(compute_dir_index, directory)
-        tasks.append(corotuine)
+        coroutine = asyncio.to_thread(compute_dir_index, directory)
+        tasks.append(coroutine)
     # execute tasks concurrently and await for all results to come
     indexes = await asyncio.gather(*tasks)
 
