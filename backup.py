@@ -6,7 +6,6 @@ import json
 import boto3
 import psutil
 import asyncio
-import time
 from pathlib import Path
 
 
@@ -48,10 +47,8 @@ async def main():
     except OSError:
         old_index = {}
 
-    # compute the current/new index
-    new_index = {}
-    for directory in DIRECTORIES:
-        new_index.update(compute_dir_index(directory))
+    # get new index
+    new_index = await compute_index()
 
     # if no change in index exit
     if new_index == old_index:
@@ -82,6 +79,25 @@ def is_running():
             ):
                 return True
     return False
+
+
+async def compute_index():
+    """Compute index on every dict concurrently."""
+
+    # gather compute_dir_index tasks
+    tasks = []
+    for directory in DIRECTORIES:
+        corotuine = asyncio.to_thread(compute_dir_index, directory)
+        tasks.append(corotuine)
+    # execute tasks concurrently and await for all results to come
+    indexes = await asyncio.gather(*tasks)
+
+    # merge all dicts into one index
+    new_index = {}
+    for index in indexes:
+        new_index.update(index)
+
+    return new_index
 
 
 def compute_dir_index(root_dir: str) -> dict:
@@ -136,10 +152,20 @@ async def update_bucket(new_index, old_index):
 
     # prepare tasks for deletion/update/upload
     tasks = []
+    # files to delete
     for key in data.get("deleted", []):
-        tasks.append(delete_s3_object(key))
+        coroutine = asyncio.to_thread(CLIENT.delete_object, Bucket=BUCKET_NAME, Key=key)
+        tasks.append(coroutine)
+    # files to update/upload
     for key in data.get("created", []) + data.get("modified", []):
-        tasks.append(upload_s3_object(key))
+        coroutine = asyncio.to_thread(
+            CLIENT.upload_file,
+            Filename=key,
+            Bucket=BUCKET_NAME,
+            Key=key,
+            ExtraArgs={"StorageClass": STORAGE_CLASS},
+        )
+        tasks.append(coroutine)
 
     # execute tasks concurrently
     await asyncio.gather(*tasks)
@@ -170,22 +196,6 @@ def compute_diff(new_index, old_index):
     data["modified"] = [f for f in common_files if new_index[f] != old_index[f]]
 
     return data
-
-
-async def delete_s3_object(key):
-    """Makse the client.delete_object method asynchronous."""
-    await asyncio.to_thread(CLIENT.delete_object, Bucket=BUCKET_NAME, Key=key)
-
-
-async def upload_s3_object(key):
-    """Makse the client.upload_file method asynchronous."""
-    await asyncio.to_thread(
-        CLIENT.upload_file,
-        Filename=key,
-        Bucket=BUCKET_NAME,
-        Key=key,
-        ExtraArgs={"StorageClass": STORAGE_CLASS},
-    )
 
 
 if __name__ == "__main__":
