@@ -47,15 +47,18 @@ async def main():
     except OSError:
         old_index = {}
 
-    # get new index
+    # get the new index
     new_index = await compute_index()
 
     # if no change in index exit
     if new_index == old_index:
         sys.exit()
 
+    # determine which objects to delete/upload
+    data = compute_diff(new_index, old_index)
+
     # aynchronysly update S3 bucket (delete/update/upload files)
-    await update_bucket(new_index, old_index)
+    await update_bucket(data)
 
     # save/overwrite the json index file with the fresh new index
     with open("logs/index.json", "w") as fp:
@@ -139,38 +142,6 @@ def get_mtime(file_path: str) -> str:
         return None
 
 
-async def update_bucket(new_index, old_index):
-    """
-    Create the needed S3 resources and instances and
-    delete/upload files concurrently.
-    data: dictionary of deleted, new and modified files
-    return: None
-    """
-
-    # determine which objects to delete/upload
-    data = compute_diff(new_index, old_index)
-
-    # prepare tasks for deletion/update/upload
-    tasks = []
-    # files to delete
-    for key in data.get("deleted", []):
-        coroutine = asyncio.to_thread(CLIENT.delete_object, Bucket=BUCKET_NAME, Key=key)
-        tasks.append(coroutine)
-    # files to update/upload
-    for key in data.get("created", []) + data.get("modified", []):
-        coroutine = asyncio.to_thread(
-            CLIENT.upload_file,
-            Filename=key,
-            Bucket=BUCKET_NAME,
-            Key=key,
-            ExtraArgs={"StorageClass": STORAGE_CLASS},
-        )
-        tasks.append(coroutine)
-
-    # execute tasks concurrently
-    await asyncio.gather(*tasks)
-
-
 def compute_diff(new_index, old_index):
     """
     Computes the differences between the S3 bucket, the
@@ -196,6 +167,34 @@ def compute_diff(new_index, old_index):
     data["modified"] = [f for f in common_files if new_index[f] != old_index[f]]
 
     return data
+
+
+async def update_bucket(data):
+    """
+    Create the needed S3 resources and instances and
+    delete/upload files concurrently.
+    data: dictionary of deleted, new and modified files
+    return: None
+    """
+    # prepare tasks for deletion/update/upload
+    tasks = []
+    # files to delete
+    for key in data.get("deleted", []):
+        coroutine = asyncio.to_thread(CLIENT.delete_object, Bucket=BUCKET_NAME, Key=key)
+        tasks.append(coroutine)
+    # files to update/upload
+    for key in data.get("created", []) + data.get("modified", []):
+        coroutine = asyncio.to_thread(
+            CLIENT.upload_file,
+            Filename=key,
+            Bucket=BUCKET_NAME,
+            Key=key,
+            ExtraArgs={"StorageClass": STORAGE_CLASS},
+        )
+        tasks.append(coroutine)
+
+    # execute tasks concurrently
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
