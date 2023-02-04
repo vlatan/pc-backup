@@ -6,6 +6,7 @@ via cronjob. It basically computes an index of files along with their
 last modified timestamps and if there are any changes from the previous state
 it deletes/uploads files from/to the S3 bucket accordingly.
 
+
 ### Prerequisites
 
 - [AWS Account](https://aws.amazon.com/)
@@ -24,32 +25,62 @@ can be as close to Google Drive or Dropbox as possible.
 Additionally you'll need:
 - [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SDK for Python)
 - [psutil](https://pypi.org/project/psutil/) (cross-platform library for retrieving information on running processes and system utilization in Python)
-- [dotenv](https://pypi.org/project/python-dotenv/) (reads key-value pairs from an .env file and can set them as environment variables)
+- [dotenv](https://pypi.org/project/python-dotenv/) (reads key-value pairs from an .env file and can sets them as environment variables)
 - more in `requirements.txt`
+
 
 ### Usage
 
-In a separate `.env` file define several constants specific to your environment:
+Clone the repo and cd into its folder:
 
 ```
-# path to the user's directory
-USER_HOME=/home/user/john
-
-# your s3 bucket name
-BUCKET_NAME=your-bucket-name
-
-# the names of the directories you want to track and sync in the user's home directory
-DIRS=['music', 'videos', 'documents', 'etc']
-
-# json index file location relative to the home directory
-INDEX_FILE=/pc-backup/logs/index.json
-
-# prefixes to exclude (e.g. hidden files)
-PREFIXES=('__', '~', '.')
-
-# suffixes to exclude (e.g. files with certain extensions)
-SUFFIXES=('.log', '.out', '.crdownload', '.tmp', '.part', '.partial', 'desktop.ini')
+git clone https://github.com/vlatan/pc-backup.git && cd pc-backup
 ```
+
+Create virtual environment `.venv`, activate it, upgrade `pip` and install the dependencies:
+
+```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install pip --upgrade
+pip install -r requirements.txt
+```
+
+Create `config.json` file and define several variables in a JSON document format specific to your needs:
+
+```
+{
+    "DIRECTORIES": [
+        "/home/john/music",
+        "/home/john/videos",
+        "/home/documents"
+    ],
+    "BUCKET_NAME": "your-bucket-name",
+    "STORAGE_CLASS": "STANDARD_IA",
+    "PREFIXES": [
+        "__",
+        "~",
+        "."
+    ],
+    "SUFFIXES": [
+        ".log",
+        ".out",
+        ".crdownload",
+        ".tmp",
+        ".part",
+        ".partial",
+        ".torrent",
+        "desktop.ini"
+    ]
+}
+```
+
+`DIRECTORIES` - list of absolute paths of the folders you want to track and upload/sync to AWS bucket.  
+`BUCKET_NAME` - the name of your AWS s3 bucket that you already prepared for this job.  
+`STORAGE_CLASS` - AWS s3 objects storage class.  
+`PREFIXES` - list of prefixes to exclude files/folders with those prefixes (e.g. hidden files):  
+`SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. (e.g. files with certain extensions):
+
 
 Schedule a cronjob:
 
