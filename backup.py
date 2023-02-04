@@ -3,20 +3,26 @@
 import os
 import sys
 import json
-import psutil
 import boto3
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-from dotenv import load_dotenv
+import psutil
+import asyncio
+import time
+from pathlib import Path
 
-# load enviroment variables
-load_dotenv()
-USER_HOME = os.environ.get("USER_HOME")
-BUCKET_NAME = os.environ.get("BUCKET_NAME")
-DIRS = os.environ.get("DIRS").split(", ")
-INDEX_FILE = USER_HOME + os.environ.get("INDEX_FILE")
-PREFIXES = tuple(os.environ.get("PREFIXES").split(", "))
-SUFFIXES = tuple(os.environ.get("SUFFIXES").split(", "))
+
+# get config variables
+with open("config.json", "r") as jsonfile:
+    config = json.load(jsonfile)
+
+DIRECTORIES = config.get("DIRECTORIES")
+BUCKET_NAME = config.get("BUCKET_NAME")
+STORAGE_CLASS = config.get("STORAGE_CLASS")
+PREFIXES = tuple(config.get("PREFIXES"))
+SUFFIXES = tuple(config.get("PREFIXES"))
+
+s3 = boto3.resource("s3")  # create an S3 resource
+BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
+CLIENT = s3.meta.client  # instantiate an S3 low-level client
 
 
 def main():
@@ -29,23 +35,34 @@ def main():
     if is_running():
         sys.exit()
 
+    # ensure the logs folder exists
+    try:
+        os.makedirs("logs")
+    except OSError:
+        pass
+
     # get the old index
-    with open(INDEX_FILE, "r") as f:
-        old_index = json.load(f)
+    try:
+        with open("logs/index.json", "r") as fp:
+            old_index = json.load(fp)
+    except OSError:
+        old_index = {}
 
     # compute the current/new index
-    new_index = compute_index()
+    new_index = {}
+    for directory in DIRECTORIES:
+        new_index.update(compute_dir_index(directory))
 
     # if no change in index exit
     if new_index == old_index:
         sys.exit()
 
-    # synchronize with S3 (delete/upload files from/to s3 bucket)
-    aws_sync(new_index, old_index)
+    # aynchronysly update S3 bucket (delete/update/upload files)
+    asyncio.run(update_bucket(new_index, old_index))
 
     # save/overwrite the json index file with the fresh new index
-    with open(INDEX_FILE, "w") as f:
-        json.dump(new_index, f, indent=4)
+    with open("logs/index.json", "w") as fp:
+        json.dump(new_index, fp, indent=4)
 
 
 def is_running():
@@ -67,103 +84,80 @@ def is_running():
     return False
 
 
-def compute_index():
+def compute_dir_index(root_dir: str) -> dict:
     """
     Computes a directory's index of files and their last modified times.
-    path: path to the root directory
-    dirs_to_sync: directories we want to sync within the path
-    prefixes: tuple of prefixes to ignore
-    suffixes: tuple of suffixes to ignore
-    return: a dictionary with files and their last modified time
+    dir_path: absolute path to the root directory
+    prefixes: list of prefixes to ignore
+    suffixes: list of suffixes to ignore
+    return: dictionary with files absolute paths and their last modified time
     """
     index = {}
-    # traverse the path
-    for root, dirs, files in os.walk(USER_HOME):
-        # if first level directory
-        if root == USER_HOME:
-            # ignore all files in the root directory
-            files[:] = []
-            # include only directories we want to sync
-            dirs[:] = [d for d in dirs if d in DIRS]
-        else:
-            # exclude directories with certain prefixes
-            dirs[:] = [d for d in dirs if not d.startswith(PREFIXES)]
-            # exclude files with certain prefixes/suffixes
-            files[:] = [
-                f
-                for f in files
-                if not f.startswith(PREFIXES) and not f.endswith(SUFFIXES)
-            ]
-        # loop through the files in the current directory
-        for f in files:
-            # try to record the file's mtime
-            try:
-                # get the file's path relative to the USER_HOME
-                rel_file_path = os.path.relpath(os.path.join(root, f), USER_HOME)
-                # get the file's full path (joined with the USER_HOME)
-                full_file_path = os.path.join(USER_HOME, rel_file_path)
-                # try to open the file to make sure
-                # it's not in the middle of a copy/paste operation
-                with open(full_file_path, "r"):
-                    # get the last modified time of the file
-                    mtime = os.path.getmtime(full_file_path)
-                    # put the file in the index with the relative path and mtime
-                    index[rel_file_path] = mtime
-            except OSError:
-                continue
+    # traverse the path (os.walk is recursive)
+    for current_dir_path, dir_names, file_names in os.walk(root_dir):
+        # exclusion helper function
+        permitted = lambda x: not (x.startswith(PREFIXES) or x.endswith(SUFFIXES))
+        # copy of dir_names without excluded directories
+        dir_names[:] = [d for d in dir_names if permitted(d)]
+        # copy of file_names without excluded files
+        file_names[:] = [f for f in file_names if permitted(f)]
+        # loop through the file names in the current directory
+        for file_name in file_names:
+            # get the file's absolute path
+            file_path = Path(current_dir_path, file_name)
+            if mtime := get_mtime(file_path):
+                # record the file's last modification time
+                index[str(file_path)] = mtime
     return index
 
 
-def aws_sync(new_index, old_index):
+def get_mtime(file_path: str) -> str:
+    """Try to get the file's mtime."""
+    try:
+        # try to open the file to make sure
+        # it's not in the middle of a copy/paste operation
+        with open(file_path, "r"):
+            # get the last modified time of the file
+            return os.path.getmtime(file_path)
+    except OSError:
+        return None
+
+
+async def update_bucket(new_index, old_index):
     """
     Create the needed S3 resources and instances and
     delete/upload files concurrently.
     data: dictionary of deleted, new and modified files
-    user_home: the user's home path
-    bucket_name: S3 bucket name
-    json_index_file: path to the json index file
     return: None
     """
-    # create an S3 resource
-    s3 = boto3.resource("s3")
-
-    # instantiate an S3 bucket
-    bucket = s3.Bucket(BUCKET_NAME)
-
-    # instantiate an S3 low-level client
-    client = s3.meta.client
 
     # determine which objects to delete/upload
-    data = compute_diff(new_index, old_index, bucket)
+    data = compute_diff(new_index, old_index)
 
-    # construct a list of lists filled with parameters needed
-    # for handling every key so we can easily map the parameters
-    # for all the keys to the function that handles objects
-    super_args = []
-    for key in data["deleted"]:
-        super_args.append([client, BUCKET_NAME, key, None, None, True])
-    for key in data["created"] + data["modified"]:
-        super_args.append(
-            [client, BUCKET_NAME, key, f"{USER_HOME}/{key}", "STANDARD_IA", False]
-        )
+    # prepare tasks for deletion/update/upload
+    tasks = []
+    for key in data.get("deleted", []):
+        tasks.append(delete_s3_object(key))
+    for key in data.get("created", []) + data.get("modified", []):
+        tasks.append(upload_s3_object(key))
 
-    # delete/upload files concurrently
-    execute_threads(super_args)
+    # execute tasks concurrently
+    return await asyncio.gather(*tasks)
 
 
-def compute_diff(new_index, old_index, bucket):
+def compute_diff(new_index, old_index):
     """
     Computes the differences between the S3 bucket, the
     new index and the old index.
     new_index: newly computed directory index (dict)
     old_index: old directory index from a json file (dict)
-    bucket: S3 bucket boto3 instance.
+    BUCKET: S3 bucket boto3 instance.
     return: dictionary of deleted/created/modified files
     """
     # get keys/files from indexes and the bucket
     new_index_files = set(new_index.keys())
     old_index_files = set(old_index.keys())
-    bucket_files = set(f.key for f in bucket.objects.all())
+    bucket_files = set(f.key for f in BUCKET.objects.all())
 
     data = {}
     # files in the S3 bucket but not in the new index (deleted files) - sets difference
@@ -178,61 +172,25 @@ def compute_diff(new_index, old_index, bucket):
     return data
 
 
-def execute_threads(super_args):
-    """
-    Delete/upload files concurrently each in different thread.
-    super_args: A list of lists each containing args for handle_object(args)
-    return: None
-    """
-    # ubuntu freezes when too many files are uploaded in parallel
-    # max_workers = max(len(super_args), os.cpu_count() + 4)
-    max_workers = os.cpu_count() + 4
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_keys = {}
-        for i in range(len(super_args)):
-            k = executor.submit(handle_object, super_args[i])
-            future_keys[k] = [super_args[i][2], super_args[i][5]]
-
-        uploaded, deleted = 0, 0
-        # inspect completed (finished or canceled) futures/threads
-        for future in as_completed(future_keys):
-            key, delete = future_keys[future][0], future_keys[future][1]
-            try:
-                future.result()
-                if delete:
-                    deleted += 1
-                    print(f"DELETED: {key}.")
-                else:
-                    uploaded += 1
-                    print(f"UPLOADED: {key}.")
-            except Exception as e:
-                print(f"FILE: {key}.")
-                print(f"EXCEPTION: {e}.")
-
-    time_now = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
-    print("-" * 53)
-    print(f"Uploaded: {uploaded}. Deleted: {deleted}.", end=" ")
-    print(f"Time: {time_now}.\n")
+async def delete_s3_object(key):
+    """Makse the client.delete_object method asynchronous."""
+    await asyncio.to_thread(CLIENT.delete_object, Bucket=BUCKET_NAME, Key=key)
 
 
-def handle_object(args):
-    """
-    Delete/upload a file from/to an S3 bucket.
-    args: [client, bucket_name, key, filename, storage_class, delete]
-    return: True if the file was deleted/uploaded
-    """
-    client, bucket_name, key = args[0], args[1], args[2]
-    filename, storage_class, delete = args[3], args[4], args[5]
-    if delete:
-        client.delete_object(Bucket=bucket_name, Key=key)
-    else:
-        client.upload_file(
-            Filename=filename,
-            Bucket=bucket_name,
-            Key=key,
-            ExtraArgs={"StorageClass": storage_class},
-        )
-    return True
+async def upload_s3_object(key):
+    """Makse the client.upload_file method asynchronous."""
+    await asyncio.to_thread(
+        CLIENT.upload_file,
+        Filename=key,
+        Bucket=BUCKET_NAME,
+        Key=key,
+        ExtraArgs={"StorageClass": STORAGE_CLASS},
+    )
+
+
+def sleep_function():
+    time.sleep(1)
+    print("Upload done")
 
 
 if __name__ == "__main__":
