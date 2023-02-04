@@ -25,7 +25,7 @@ BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
 CLIENT = s3.meta.client  # instantiate an S3 low-level client
 
 
-def main():
+async def main():
     """
     If there's a change in the directories
     delete/upload files from/to s3 bucket.
@@ -58,7 +58,7 @@ def main():
         sys.exit()
 
     # aynchronysly update S3 bucket (delete/update/upload files)
-    asyncio.run(update_bucket(new_index, old_index))
+    await update_bucket(new_index, old_index)
 
     # save/overwrite the json index file with the fresh new index
     with open("logs/index.json", "w") as fp:
@@ -142,7 +142,7 @@ async def update_bucket(new_index, old_index):
         tasks.append(upload_s3_object(key))
 
     # execute tasks concurrently
-    return await asyncio.gather(*tasks)
+    await asyncio.gather(*tasks)
 
 
 def compute_diff(new_index, old_index):
@@ -188,10 +188,5 @@ async def upload_s3_object(key):
     )
 
 
-def sleep_function():
-    time.sleep(1)
-    print("Upload done")
-
-
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
