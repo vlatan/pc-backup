@@ -13,8 +13,7 @@ it deletes/uploads files from/to the S3 bucket accordingly.
 - [S3 bucket](https://aws.amazon.com/s3/)
 - [IAM user and policy](https://docs.aws.amazon.com/AmazonS3/latest/dev/walkthrough1.html)
 for programmatic access to the S3 bucket
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
-installed and configured on your machine, and
+- AWS CLI [installed](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) and [configured](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html) on your machine, and
 - Means for scheduling a [cronjob](https://crontab.guru/).
 
 Don't forget to [enable versioning](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/enable-versioning.html)
@@ -25,7 +24,6 @@ can be as close to Google Drive or Dropbox as possible.
 Additionally you'll need:
 - [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SDK for Python)
 - [psutil](https://pypi.org/project/psutil/) (cross-platform library for retrieving information on running processes and system utilization in Python)
-- [dotenv](https://pypi.org/project/python-dotenv/) (reads key-value pairs from an .env file and can sets them as environment variables)
 - more in `requirements.txt`
 
 
@@ -76,8 +74,8 @@ Create `config.json` file and define several variables in a JSON document format
 ```
 
 `DIRECTORIES` - list of absolute paths of the folders you want to track and upload/sync to AWS bucket.  
-`BUCKET_NAME` - the name of your AWS s3 bucket that you already prepared for this job.  
-`STORAGE_CLASS` - AWS s3 objects storage class.  
+`BUCKET_NAME` - the name of your AWS S3 bucket that you already prepared for this job.  
+`STORAGE_CLASS` - AWS S3 objects [storage class](https://aws.amazon.com/s3/storage-classes/).  
 `PREFIXES` - list of prefixes to exclude files/folders with those prefixes (e.g. hidden files):  
 `SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. (e.g. files with certain extensions):
 
