@@ -24,7 +24,7 @@ BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
 CLIENT = s3.meta.client  # instantiate an S3 low-level client
 
 
-async def main():
+async def main() -> None:
     """
     If there's a change in the directories
     delete/upload files from/to s3 bucket.
@@ -65,7 +65,7 @@ async def main():
         json.dump(new_index, fp, indent=4)
 
 
-def is_running():
+def is_running() -> bool:
     """
     Check if this script is already running.
     return: True if it's running, False otherwise
@@ -84,7 +84,7 @@ def is_running():
     return False
 
 
-async def compute_index():
+async def compute_index() -> dict[str, float]:
     """Compute index on every dict concurrently."""
 
     # gather compute_dir_index tasks
@@ -103,7 +103,7 @@ async def compute_index():
     return new_index
 
 
-def compute_dir_index(root_dir: str) -> dict:
+def compute_dir_index(root_dir: str) -> dict[str, float]:
     """
     Computes a directory's index of files and their last modified times.
     dir_path: absolute path to the root directory
@@ -130,7 +130,7 @@ def compute_dir_index(root_dir: str) -> dict:
     return index
 
 
-def get_mtime(file_path: str) -> str:
+def get_mtime(file_path: str) -> float | None:
     """Try to get the file's mtime."""
     try:
         # get the last modified time of the file
@@ -139,7 +139,9 @@ def get_mtime(file_path: str) -> str:
         return None
 
 
-def compute_diff(new_index, old_index):
+def compute_diff(
+    new_index: dict[str, float], old_index: dict[str, float]
+) -> dict[str, list[str]]:
     """
     Computes the differences between the S3 bucket, the
     new index and the old index.
@@ -166,7 +168,7 @@ def compute_diff(new_index, old_index):
     return data
 
 
-async def update_bucket(data):
+async def update_bucket(data: dict[str, list[str]]) -> None:
     """
     Create the needed S3 resources and instances and
     delete/upload files concurrently.
