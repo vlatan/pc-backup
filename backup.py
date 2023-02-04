@@ -12,6 +12,7 @@ import asyncio
 with open("config.json", "r") as jsonfile:
     config = json.load(jsonfile)
 
+
 DIRECTORIES = config.get("DIRECTORIES")
 BUCKET_NAME = config.get("BUCKET_NAME")
 STORAGE_CLASS = config.get("STORAGE_CLASS")
