@@ -6,7 +6,6 @@ import json
 import boto3
 import psutil
 import asyncio
-from pathlib import Path
 
 
 # get config variables
@@ -123,7 +122,7 @@ def compute_dir_index(root_dir: str) -> dict:
         # loop through the file names in the current directory
         for file_name in file_names:
             # get the file's absolute path
-            file_path = Path(current_dir_path, file_name)
+            file_path = os.path.join(current_dir_path, file_name)
             if mtime := get_mtime(file_path):
                 # record the file's last modification time
                 index[str(file_path)] = mtime
@@ -133,11 +132,8 @@ def compute_dir_index(root_dir: str) -> dict:
 def get_mtime(file_path: str) -> str:
     """Try to get the file's mtime."""
     try:
-        # try to open the file to make sure
-        # it's not in the middle of a copy/paste operation
-        with open(file_path, "r"):
-            # get the last modified time of the file
-            return os.path.getmtime(file_path)
+        # get the last modified time of the file
+        return os.path.getmtime(file_path)
     except OSError:
         return None
 
