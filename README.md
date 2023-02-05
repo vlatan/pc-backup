@@ -69,15 +69,17 @@ Create `config.json` file and define several variables in a JSON document format
         ".partial",
         ".torrent",
         "desktop.ini"
-    ]
+    ],
+    "MAX_POOL_SIZE": 50
 }
 ```
 
 `DIRECTORIES` - list of absolute paths of the folders you want to track and upload/sync to AWS bucket.  
 `BUCKET_NAME` - the name of your AWS S3 bucket that you already prepared for this job.  
 `STORAGE_CLASS` - AWS S3 objects [storage class](https://aws.amazon.com/s3/storage-classes/).  
-`PREFIXES` - list of prefixes to exclude files/folders with those prefixes (e.g. hidden files):  
-`SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. (e.g. files with certain extensions):
+`PREFIXES` - list of prefixes to exclude files/folders with those prefixes (e.g. hidden files).  
+`SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. (e.g. files with certain extensions).  
+`MAX_POOL_SIZE` - the size of concurrent chunks of files to delete/upload.
 
 
 Schedule a cronjob:

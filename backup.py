@@ -21,13 +21,14 @@ BUCKET_NAME = config.get("BUCKET_NAME")
 STORAGE_CLASS = config.get("STORAGE_CLASS")
 PREFIXES = tuple(config.get("PREFIXES"))
 SUFFIXES = tuple(config.get("PREFIXES"))
+MAX_POOL_SIZE = config.get("MAX_POOL_SIZE")
 
 
 # setup boto3
-client_config = botocore.config.Config(max_pool_connections=50)
+client_config = botocore.config.Config(max_pool_connections=MAX_POOL_SIZE)
 s3 = boto3.resource("s3", config=client_config)  # create an S3 resource
 BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
-CLIENT = s3.meta.client  # instantiate an S3 low-level client
+CLIENT = s3.meta.client  # instantiate an S3 low-level client (thread safe)
 
 
 async def main() -> None:
@@ -86,7 +87,9 @@ def init_set_up() -> None:
 
     # if this script/file is already running exit
     if is_running():
-        sys.exit(logging.warning("Attempted to run the script concurrently!"))
+        logging.warning("Attempted to run the script concurrently!")
+        logging.warning(60 * "-")
+        sys.exit()
 
 
 def is_running() -> bool:
@@ -211,11 +214,17 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
         tasks.append(coroutine)
 
     start = time.perf_counter()
-    # execute tasks concurrently
-    result = await asyncio.gather(*tasks)
+    # prepare empty list for final results and chunks of files for processing
+    results, chunks = [], list(divide_list_in_chunks(tasks, MAX_POOL_SIZE - 10))
+    # execute tasks in MAX_POOL_SIZE chunks
+    for chunk in chunks:
+        # tasks in each chunk run concurrently
+        results += await asyncio.gather(*chunk)
     end = time.perf_counter()
+
     # log summary results
-    logging.info(f"Processed {len(result)} files. It took {end - start:4f} seconds.")
+    logging.info(f"Processed {len(results)} files. It took {end - start:.4f} seconds.")
+    logging.info(60 * "-")
 
 
 def delete_s3_object(key):
@@ -237,6 +246,12 @@ def log_file_status(key: str, response: dict) -> None:
     """Log file delete or put response status."""
     status = response["ResponseMetadata"]["HTTPStatusCode"]
     logging.info(f"{key}: {status}")
+
+
+def divide_list_in_chunks(lst, n):
+    """Loop till length of list with step n, yield chunk of size n."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
 
 
 if __name__ == "__main__":
