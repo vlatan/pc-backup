@@ -1,5 +1,3 @@
-#! /usr/bin/env python3
-
 import os
 import sys
 import json
@@ -8,7 +6,6 @@ import boto3
 import psutil
 import asyncio
 import logging
-from botocore.config import Config as boto3_config
 from botocore.exceptions import ClientError
 
 
@@ -22,12 +19,10 @@ BUCKET_NAME = config.get("BUCKET_NAME")
 STORAGE_CLASS = config.get("STORAGE_CLASS")
 PREFIXES = tuple(config.get("PREFIXES"))
 SUFFIXES = tuple(config.get("PREFIXES"))
-MAX_POOL_SIZE = config.get("MAX_POOL_SIZE")
 
 
 # setup boto3
-client_config = boto3_config(max_pool_connections=MAX_POOL_SIZE)
-s3 = boto3.resource("s3", config=client_config)  # create an S3 resource
+s3 = boto3.resource("s3")  # create an S3 resource
 BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
 CLIENT = s3.meta.client  # instantiate an S3 low-level client (thread safe)
 
@@ -213,12 +208,13 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
         coroutine = asyncio.to_thread(upload_s3_object, key)
         tasks.append(coroutine)
 
+    # prepare tasks in chunks of maximum 10 files each
+    results, chunks = [], list(divide_list_in_chunks(tasks, 10))
+
     start = time.perf_counter()
-    # prepare empty list for final results and chunks of files for processing
-    results, chunks = [], list(divide_list_in_chunks(tasks, abs(MAX_POOL_SIZE - 10)))
     # execute tasks in chunks
     for chunk in chunks:
-        # tasks (calls ro aws s3) in each chunk run concurrently
+        # tasks (calls to aws s3) in each chunk run concurrently
         results += await asyncio.gather(*chunk)
     end = time.perf_counter()
 
@@ -252,12 +248,6 @@ def upload_s3_object(key: str) -> None:
         logging.error(e)
 
     logging.info(f"{key}: UPLOAD")
-
-
-def log_file_status(key: str, response: dict) -> None:
-    """Log file delete or put response status."""
-    status = response["ResponseMetadata"]["HTTPStatusCode"]
-    logging.info(f"{key}: {status}")
 
 
 def divide_list_in_chunks(lst, n):

@@ -7,7 +7,7 @@ last modified timestamps and if there are any changes from the previous state
 it deletes/uploads files from/to the S3 bucket accordingly.
 
 
-### Prerequisites
+## Prerequisites
 
 - [AWS Account](https://aws.amazon.com/)
 - [S3 bucket](https://aws.amazon.com/s3/)
@@ -27,7 +27,7 @@ Additionally you'll need:
 - more in `requirements.txt`
 
 
-### Usage
+## Usage
 
 Clone the repo and cd into its folder:
 
@@ -69,8 +69,7 @@ Create `config.json` file and define several variables in a JSON document format
         ".partial",
         ".torrent",
         "desktop.ini"
-    ],
-    "MAX_POOL_SIZE": 50
+    ]
 }
 ```
 
@@ -86,11 +85,9 @@ Schedule a cronjob:
 
 ```
 # run every minute
-*/1 * * * * cd /home/user/john/pc-backup && ./backup.py >> logs/backup.out 2>&1
+*/1 * * * * cd /home/<user>/pc-backup && .venv/bin/python backup.py >> logs/backup.out 2>&1
 ```
 
-### License
+## License
 
-[MIT](https://github.com/vlatan/pc-backup/blob/master/LICENSE)
-
-
+[![License: MIT](https://img.shields.io/github/license/vlatan/pc-backup?label=License)](/LICENSE "License: MIT")
