@@ -5,10 +5,11 @@ import sys
 import json
 import time
 import boto3
-import botocore
 import psutil
 import asyncio
 import logging
+from botocore.config import Config as boto3_config
+from botocore.exceptions import ClientError
 
 
 # get config variables
@@ -25,7 +26,7 @@ MAX_POOL_SIZE = config.get("MAX_POOL_SIZE")
 
 
 # setup boto3
-client_config = botocore.config.Config(max_pool_connections=MAX_POOL_SIZE)
+client_config = boto3_config(max_pool_connections=MAX_POOL_SIZE)
 s3 = boto3.resource("s3", config=client_config)  # create an S3 resource
 BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
 CLIENT = s3.meta.client  # instantiate an S3 low-level client (thread safe)
@@ -35,7 +36,6 @@ async def main() -> None:
     """
     If there's a change in the directories
     delete/upload files from/to s3 bucket.
-    return: None
     """
     # perform initial setup
     init_set_up()
@@ -210,15 +210,15 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
         tasks.append(coroutine)
     # files to update/upload
     for key in data.get("created", []) + data.get("modified", []):
-        coroutine = asyncio.to_thread(put_s3_object, key)
+        coroutine = asyncio.to_thread(upload_s3_object, key)
         tasks.append(coroutine)
 
     start = time.perf_counter()
     # prepare empty list for final results and chunks of files for processing
-    results, chunks = [], list(divide_list_in_chunks(tasks, MAX_POOL_SIZE - 10))
-    # execute tasks in MAX_POOL_SIZE chunks
+    results, chunks = [], list(divide_list_in_chunks(tasks, abs(MAX_POOL_SIZE - 10)))
+    # execute tasks in chunks
     for chunk in chunks:
-        # tasks in each chunk run concurrently
+        # tasks (calls ro aws s3) in each chunk run concurrently
         results += await asyncio.gather(*chunk)
     end = time.perf_counter()
 
@@ -227,19 +227,31 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
     logging.info(60 * "-")
 
 
-def delete_s3_object(key):
-    response = CLIENT.delete_object(Bucket=BUCKET_NAME, Key=key)
-    log_file_status(key, response)
+def delete_s3_object(key: str) -> None:
+    try:
+        response = CLIENT.delete_object(Bucket=BUCKET_NAME, Key=key)
+        status = response["ResponseMetadata"]["HTTPStatusCode"]
+    except ClientError as e:
+        logging.warning(f"{key}: FAIL")
+        logging.error(e)
+
+    logging.info(f"{key}: DELETE - {status}")
 
 
-def put_s3_object(key):
-    response = CLIENT.put_object(
-        Body=key,
-        Bucket=BUCKET_NAME,
-        Key=key,
-        StorageClass=STORAGE_CLASS,
-    )
-    log_file_status(key, response)
+def upload_s3_object(key: str) -> None:
+    try:
+        # on success response is None
+        CLIENT.upload_file(
+            Filename=key,
+            Bucket=BUCKET_NAME,
+            Key=key,
+            ExtraArgs={"StorageClass": STORAGE_CLASS},
+        )
+    except ClientError as e:
+        logging.warning(f"{key}: FAIL")
+        logging.error(e)
+
+    logging.info(f"{key}: UPLOAD")
 
 
 def log_file_status(key: str, response: dict) -> None:
