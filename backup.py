@@ -3,9 +3,12 @@
 import os
 import sys
 import json
+import time
 import boto3
+import botocore
 import psutil
 import asyncio
+import logging
 
 
 # get config variables
@@ -19,7 +22,10 @@ STORAGE_CLASS = config.get("STORAGE_CLASS")
 PREFIXES = tuple(config.get("PREFIXES"))
 SUFFIXES = tuple(config.get("PREFIXES"))
 
-s3 = boto3.resource("s3")  # create an S3 resource
+
+# setup boto3
+client_config = botocore.config.Config(max_pool_connections=50)
+s3 = boto3.resource("s3", config=client_config)  # create an S3 resource
 BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
 CLIENT = s3.meta.client  # instantiate an S3 low-level client
 
@@ -30,15 +36,8 @@ async def main() -> None:
     delete/upload files from/to s3 bucket.
     return: None
     """
-    # if this script/file is already running exit
-    if is_running():
-        sys.exit()
-
-    # ensure the logs folder exists
-    try:
-        os.makedirs("logs")
-    except OSError:
-        pass
+    # perform initial setup
+    init_set_up()
 
     # get the old index
     try:
@@ -63,6 +62,31 @@ async def main() -> None:
     # save/overwrite the json index file with the fresh new index
     with open("logs/index.json", "w") as fp:
         json.dump(new_index, fp, indent=4)
+
+
+def init_set_up() -> None:
+    """
+    Create `logs` folder if it doesn't exist.
+    Setup basic logging.
+    Exit if script is already running.
+    """
+    # ensure the logs folder exists
+    try:
+        os.makedirs("logs")
+    except OSError:
+        pass
+
+    # config logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename="logs/backup.out",
+    )
+
+    # if this script/file is already running exit
+    if is_running():
+        sys.exit(logging.warning("Attempted to run the script concurrently!"))
 
 
 def is_running() -> bool:
@@ -179,21 +203,40 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
     tasks = []
     # files to delete
     for key in data.get("deleted", []):
-        coroutine = asyncio.to_thread(CLIENT.delete_object, Bucket=BUCKET_NAME, Key=key)
+        coroutine = asyncio.to_thread(delete_s3_object, key)
         tasks.append(coroutine)
     # files to update/upload
     for key in data.get("created", []) + data.get("modified", []):
-        coroutine = asyncio.to_thread(
-            CLIENT.upload_file,
-            Filename=key,
-            Bucket=BUCKET_NAME,
-            Key=key,
-            ExtraArgs={"StorageClass": STORAGE_CLASS},
-        )
+        coroutine = asyncio.to_thread(put_s3_object, key)
         tasks.append(coroutine)
 
+    start = time.perf_counter()
     # execute tasks concurrently
-    await asyncio.gather(*tasks)
+    result = await asyncio.gather(*tasks)
+    end = time.perf_counter()
+    # log summary results
+    logging.info(f"Processed {len(result)} files. It took {end - start:4f} seconds.")
+
+
+def delete_s3_object(key):
+    response = CLIENT.delete_object(Bucket=BUCKET_NAME, Key=key)
+    log_file_status(key, response)
+
+
+def put_s3_object(key):
+    response = CLIENT.put_object(
+        Body=key,
+        Bucket=BUCKET_NAME,
+        Key=key,
+        StorageClass=STORAGE_CLASS,
+    )
+    log_file_status(key, response)
+
+
+def log_file_status(key: str, response: dict) -> None:
+    """Log file delete or put response status."""
+    status = response["ResponseMetadata"]["HTTPStatusCode"]
+    logging.info(f"{key}: {status}")
 
 
 if __name__ == "__main__":
