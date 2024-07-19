@@ -106,20 +106,13 @@ def is_running() -> bool:
 async def compute_index() -> dict[str, float]:
     """Compute index on every dict concurrently."""
 
-    # gather compute_dir_index tasks
-    tasks = []
-    for directory in DIRECTORIES:
-        coroutine = asyncio.to_thread(compute_dir_index, directory)
-        tasks.append(coroutine)
-    # execute tasks concurrently and await for all results to come
-    indexes = await asyncio.gather(*tasks)
+    # execute coroutines concurrently and await for all results to come
+    coros = [asyncio.to_thread(compute_dir_index, d) for d in DIRECTORIES]
+    async with asyncio.TaskGroup() as tg:
+        indexes = [tg.create_task(coro) for coro in coros]
 
     # merge all dicts into one index
-    new_index = {}
-    for index in indexes:
-        new_index.update(index)
-
-    return new_index
+    return {key: value for index in indexes for key, value in index.result().items()}
 
 
 def compute_dir_index(root_dir: str) -> dict[str, float]:
@@ -192,31 +185,40 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
     Create the needed S3 resources and instances and
     delete/upload files concurrently.
     data: dictionary of deleted, new and modified files
-    return: None
+    Return: None
     """
-    # prepare tasks for deletion/update/upload
-    tasks = []
-    # files to delete
-    for key in data.get("deleted", []):
+
+    # sort files by size
+    to_delete = sorted(data.get("deleted", []), key=lambda f: os.path.getsize(f))
+    to_upload = data.get("created", []) + data.get("modified", [])
+    to_upload = sorted(to_upload, key=lambda f: os.path.getsize(f))
+
+    # prepare coroutines for deletion and/or upload
+    coros = []
+    for key in to_delete:
         coroutine = asyncio.to_thread(delete_s3_object, key)
-        tasks.append(coroutine)
-    # files to update/upload
-    for key in data.get("created", []) + data.get("modified", []):
+        coros.append(coroutine)
+    for key in to_upload:
         coroutine = asyncio.to_thread(upload_s3_object, key)
-        tasks.append(coroutine)
+        coros.append(coroutine)
 
-    # prepare tasks in chunks of maximum 10 files each
-    results, chunks = [], list(divide_list_in_chunks(tasks, 10))
+    # num of cores on the machine
+    max_active_tasks = psutil.cpu_count()
 
+    # cpu_count of concurrent tasks at any given time
     start = time.perf_counter()
-    # execute tasks in chunks
-    for chunk in chunks:
-        # tasks (calls to aws s3) in each chunk run concurrently
-        results += await asyncio.gather(*chunk)
+    async with asyncio.TaskGroup() as tg:
+        for coro in coros:
+            while True:
+                active_tasks = sum(1 for t in asyncio.all_tasks() if not t.done())
+                if active_tasks < max_active_tasks:
+                    break
+                await asyncio.sleep(0.25)
+            tg.create_task(coro)
     end = time.perf_counter()
 
     # log summary results
-    logging.info(f"Processed {len(results)} files. It took {end - start:.4f} seconds.")
+    logging.info(f"Processed {len(coros)} files. It took {end - start:.4f} seconds.")
     logging.info(60 * "-")
 
 
@@ -245,12 +247,6 @@ def upload_s3_object(key: str) -> None:
         logging.error(e)
 
     logging.info(f"{key}: UPLOAD")
-
-
-def divide_list_in_chunks(lst, n):
-    """Loop till length of list with step n, yield chunk of size n."""
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
 
 
 if __name__ == "__main__":
