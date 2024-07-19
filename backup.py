@@ -90,19 +90,16 @@ def init_set_up() -> None:
 def is_running() -> bool:
     """
     Check if this script is already running.
-    return: True if it's running, False otherwise
+    Return: True if it's running, False otherwise
     """
-    # iterate through all the current processes
     for q in psutil.process_iter():
-        # if it's a python process
-        if q.name().startswith("python"):
-            # if it's this script but with different PID
-            if (
-                len(q.cmdline()) > 1
-                and sys.argv[0] in q.cmdline()[1]
-                and q.pid != os.getpid()
-            ):
-                return True
+        if (
+            q.name().startswith("python")
+            and len(q.cmdline()) > 1
+            and sys.argv[0] in q.cmdline()[1]
+            and os.getpid() != q.pid
+        ):
+            return True
     return False
 
 
