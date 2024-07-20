@@ -6,7 +6,7 @@ import boto3
 import psutil
 import asyncio
 import logging
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, BotoCoreError
 
 
 # get config variables
@@ -226,11 +226,10 @@ def delete_s3_object(key: str) -> None:
     try:
         response = CLIENT.delete_object(Bucket=BUCKET_NAME, Key=key)
         status = response["ResponseMetadata"]["HTTPStatusCode"]
-    except ClientError as e:
+        logging.info(f"{key}: DELETE - {status}")
+    except (ClientError, BotoCoreError) as e:
         logging.warning(f"{key}: FAIL")
         logging.error(e)
-
-    logging.info(f"{key}: DELETE - {status}")
 
 
 def upload_s3_object(key: str) -> None:
@@ -242,11 +241,10 @@ def upload_s3_object(key: str) -> None:
             Key=key,
             ExtraArgs={"StorageClass": STORAGE_CLASS},
         )
-    except ClientError as e:
+        logging.info(f"{key}: UPLOAD")
+    except (ClientError, BotoCoreError) as e:
         logging.warning(f"{key}: FAIL")
         logging.error(e)
-
-    logging.info(f"{key}: UPLOAD")
 
 
 if __name__ == "__main__":
