@@ -6,6 +6,7 @@ import boto3
 import psutil
 import asyncio
 import logging
+import botocore.config
 from botocore.exceptions import ClientError, BotoCoreError
 
 
@@ -19,10 +20,12 @@ BUCKET_NAME = config.get("BUCKET_NAME")
 STORAGE_CLASS = config.get("STORAGE_CLASS")
 PREFIXES = tuple(config.get("PREFIXES"))
 SUFFIXES = tuple(config.get("PREFIXES"))
+MAX_ACTIVE_TASKS = psutil.cpu_count()
 
 
 # setup boto3
-s3 = boto3.resource("s3")  # create an S3 resource
+client_config = botocore.config.Config(max_pool_connections=MAX_ACTIVE_TASKS + 1)
+s3 = boto3.resource("s3", config=client_config)  # create an S3 resource
 BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
 CLIENT = s3.meta.client  # instantiate an S3 low-level client (thread safe)
 
@@ -67,10 +70,7 @@ def init_set_up() -> None:
     Exit if script is already running.
     """
     # ensure the logs folder exists
-    try:
-        os.makedirs("logs")
-    except OSError:
-        pass
+    os.makedirs("logs", exist_ok=True)
 
     # config logging
     logging.basicConfig(
@@ -155,12 +155,10 @@ def compute_diff(
     new_index: dict[str, float], old_index: dict[str, float]
 ) -> dict[str, list[str]]:
     """
-    Computes the differences between the S3 bucket, the
-    new index and the old index.
+    Computes the differences between the S3 bucket, new index and old index.
     new_index: newly computed directory index (dict)
     old_index: old directory index from a json file (dict)
-    BUCKET: S3 bucket boto3 instance.
-    return: dictionary of deleted/created/modified files
+    Return: dictionary of deleted/created/modified files
     """
     # get keys/files from indexes and the bucket
     new_index_files = set(new_index.keys())
@@ -187,32 +185,24 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
     data: dictionary of deleted, new and modified files
     Return: None
     """
-
-    # sort files by size
-    to_delete = sorted(data.get("deleted", []), key=lambda f: os.path.getsize(f))
+    # pair files with coresponding s3 function and sort to_upload by filesize
+    to_delete = {key: delete_s3_object for key in data.get("deleted", [])}
     to_upload = data.get("created", []) + data.get("modified", [])
-    to_upload = sorted(to_upload, key=lambda f: os.path.getsize(f))
+    to_upload.sort(key=lambda f: os.path.getsize(f))
+    to_upload = {key: upload_s3_object for key in to_upload}
+    objects = to_delete | to_upload
 
     # prepare coroutines for deletion and/or upload
-    coros = []
-    for key in to_delete:
-        coroutine = asyncio.to_thread(delete_s3_object, key)
-        coros.append(coroutine)
-    for key in to_upload:
-        coroutine = asyncio.to_thread(upload_s3_object, key)
-        coros.append(coroutine)
+    coros = [asyncio.to_thread(func, key) for key, func in objects.items()]
 
-    # num of cores on the machine
-    max_active_tasks = psutil.cpu_count()
+    # quick anonymous function for getting the number of current active tasks
+    active_tasks = lambda: sum(1 for t in asyncio.all_tasks() if not t.done())
 
-    # cpu_count of concurrent tasks at any given time
+    # add tasks to group, the context will automatically await them
     start = time.perf_counter()
     async with asyncio.TaskGroup() as tg:
         for coro in coros:
-            while True:
-                active_tasks = sum(1 for t in asyncio.all_tasks() if not t.done())
-                if active_tasks < max_active_tasks:
-                    break
+            while active_tasks() >= MAX_ACTIVE_TASKS:
                 await asyncio.sleep(0.25)
             tg.create_task(coro)
     end = time.perf_counter()
