@@ -13,8 +13,7 @@ from botocore.exceptions import ClientError, BotoCoreError
 
 
 # get config variables
-with open("config.json", "r") as jsonfile:
-    config = json.load(jsonfile)
+config = json.loads(Path("config.json").read_text())
 
 
 DIRECTORIES = config.get("DIRECTORIES")
