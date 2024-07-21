@@ -85,7 +85,7 @@ Schedule a cronjob:
 
 ```
 # run every minute
-*/1 * * * * cd /home/<user>/pc-backup && .venv/bin/python backup.py >> logs/backup.out 2>&1
+*/1 * * * * cd /path/to/pc-backup && .venv/bin/python backup.py >> logs/backup.out 2>&1
 ```
 
 ## License
