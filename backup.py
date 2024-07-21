@@ -16,6 +16,7 @@ from botocore.exceptions import ClientError, BotoCoreError
 config = json.loads(Path("config.json").read_text())
 
 
+# get config vars
 DIRECTORIES = config.get("DIRECTORIES")
 BUCKET_NAME = config.get("BUCKET_NAME")
 STORAGE_CLASS = config.get("STORAGE_CLASS")
