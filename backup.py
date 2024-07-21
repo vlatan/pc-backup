@@ -2,11 +2,13 @@ import os
 import sys
 import json
 import time
+import json
 import boto3
 import psutil
 import asyncio
 import logging
 import botocore.config
+from pathlib import Path
 from botocore.exceptions import ClientError, BotoCoreError
 
 
@@ -20,7 +22,7 @@ BUCKET_NAME = config.get("BUCKET_NAME")
 STORAGE_CLASS = config.get("STORAGE_CLASS")
 PREFIXES = tuple(config.get("PREFIXES"))
 SUFFIXES = tuple(config.get("PREFIXES"))
-MAX_ACTIVE_TASKS = psutil.cpu_count()
+MAX_ACTIVE_TASKS = int(config.get("MAX_POOL_SIZE", 0)) or psutil.cpu_count()
 
 
 # setup boto3
@@ -39,11 +41,8 @@ async def main() -> None:
     init_set_up()
 
     # get the old index
-    try:
-        with open("logs/index.json", "r") as fp:
-            old_index = json.load(fp)
-    except OSError:
-        old_index = {}
+    index_path = Path("logs") / "index.json"
+    old_index = json.loads(index_path.read_text()) if index_path.exists() else {}
 
     # get the new index
     new_index = await compute_index()
@@ -59,8 +58,7 @@ async def main() -> None:
     await update_bucket(data)
 
     # save/overwrite the json index file with the fresh new index
-    with open("logs/index.json", "w") as fp:
-        json.dump(new_index, fp, indent=4)
+    index_path.write_text(json.dumps(new_index, indent=4))
 
 
 def init_set_up() -> None:
@@ -70,7 +68,7 @@ def init_set_up() -> None:
     Exit if script is already running.
     """
     # ensure the logs folder exists
-    os.makedirs("logs", exist_ok=True)
+    Path("logs").mkdir(parents=True, exist_ok=True)
 
     # config logging
     logging.basicConfig(
@@ -107,7 +105,7 @@ async def compute_index() -> dict[str, float]:
     """Compute index on every dict concurrently."""
 
     # execute coroutines concurrently and await for all results to come
-    coros = [asyncio.to_thread(compute_dir_index, d) for d in DIRECTORIES]
+    coros = [asyncio.to_thread(compute_dir_index, Path(d)) for d in DIRECTORIES]
     async with asyncio.TaskGroup() as tg:
         indexes = [tg.create_task(coro) for coro in coros]
 
@@ -115,17 +113,15 @@ async def compute_index() -> dict[str, float]:
     return {key: value for index in indexes for key, value in index.result().items()}
 
 
-def compute_dir_index(root_dir: str) -> dict[str, float]:
+def compute_dir_index(root_dir: Path) -> dict[str, float]:
     """
     Computes a directory's index of files and their last modified times.
-    dir_path: absolute path to the root directory
-    prefixes: list of prefixes to ignore
-    suffixes: list of suffixes to ignore
-    return: dictionary with files absolute paths and their last modified time
+    root_dir: absolute path to the root directory
+    Return: dictionary with files absolute paths and their last modified time
     """
     index = {}
-    # traverse the path (os.walk is recursive)
-    for current_dir_path, dir_names, file_names in os.walk(root_dir):
+    # traverse the path recursively
+    for current_dir_path, dir_names, file_names in root_dir.walk():
         # exclusion helper function
         permitted = lambda x: not (x.startswith(PREFIXES) or x.endswith(SUFFIXES))
         # copy of dir_names without excluded directories
@@ -135,20 +131,11 @@ def compute_dir_index(root_dir: str) -> dict[str, float]:
         # loop through the file names in the current directory
         for file_name in file_names:
             # get the file's absolute path
-            file_path = os.path.join(current_dir_path, file_name)
-            if mtime := get_mtime(file_path):
-                # record the file's last modification time
+            file_path = current_dir_path / file_name
+            if mtime := file_path.stat().st_mtime if file_path.exists() else None:
+                # record the file's last modification time if exists
                 index[str(file_path)] = mtime
     return index
-
-
-def get_mtime(file_path: str) -> float | None:
-    """Try to get the file's mtime."""
-    try:
-        # get the last modified time of the file
-        return os.path.getmtime(file_path)
-    except OSError:
-        return None
 
 
 def compute_diff(
@@ -188,7 +175,7 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
     # pair files with coresponding s3 function and sort to_upload by filesize
     to_delete = {key: delete_s3_object for key in data.get("deleted", [])}
     to_upload = data.get("created", []) + data.get("modified", [])
-    to_upload.sort(key=lambda f: os.path.getsize(f))
+    to_upload.sort(key=lambda f: Path(f).stat().st_size)
     to_upload = {key: upload_s3_object for key in to_upload}
     objects = to_delete | to_upload
 

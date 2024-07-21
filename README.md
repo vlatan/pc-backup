@@ -9,6 +9,7 @@ it deletes/uploads files from/to the S3 bucket accordingly.
 
 ## Prerequisites
 
+- Python.3.12+
 - [AWS Account](https://aws.amazon.com/)
 - [S3 bucket](https://aws.amazon.com/s3/)
 - [IAM user and policy](https://docs.aws.amazon.com/AmazonS3/latest/dev/walkthrough1.html)
@@ -24,7 +25,6 @@ can be as close to Google Drive or Dropbox as possible.
 Additionally you'll need:
 - [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SDK for Python)
 - [psutil](https://pypi.org/project/psutil/) (cross-platform library for retrieving information on running processes and system utilization in Python)
-- more in `requirements.txt`
 
 
 ## Usage
@@ -38,9 +38,9 @@ git clone https://github.com/vlatan/pc-backup.git && cd pc-backup
 Create virtual environment `.venv`, activate it, upgrade `pip` and install the dependencies:
 
 ```
-python3 -m venv .venv
-source .venv/bin/activate
-pip install pip --upgrade
+python3 -m venv .venv &&
+source .venv/bin/activate &&
+pip install pip --upgrade &&
 pip install -r requirements.txt
 ```
 
@@ -69,7 +69,8 @@ Create `config.json` file and define several variables in a JSON document format
         ".partial",
         ".torrent",
         "desktop.ini"
-    ]
+    ],
+    "MAX_POOL_SIZE": 10
 }
 ```
 
@@ -77,9 +78,8 @@ Create `config.json` file and define several variables in a JSON document format
 `BUCKET_NAME` - the name of your AWS S3 bucket that you already prepared for this job.  
 `STORAGE_CLASS` - AWS S3 objects [storage class](https://aws.amazon.com/s3/storage-classes/).  
 `PREFIXES` - list of prefixes to exclude files/folders with those prefixes (e.g. hidden files).  
-`SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. (e.g. files with certain extensions).  
-`MAX_POOL_SIZE` - the size of concurrent chunks of files to delete/upload.
-
+`SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. files with certain extensions).  
+`MAX_POOL_SIZE` - the number of files to delete/upload concurrently. If not set the script will use the number of cores on your machine as the maximum concurrent tasks. Keep in mind, large number of concurrent tasks may slow donw your machine.
 
 Schedule a cronjob:
 
