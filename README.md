@@ -79,7 +79,7 @@ Create `config.json` file and define several variables in a JSON document format
 `STORAGE_CLASS` - AWS S3 objects [storage class](https://aws.amazon.com/s3/storage-classes/).  
 `PREFIXES` - list of prefixes to exclude files/folders with those prefixes (e.g. hidden files).  
 `SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. files with certain extensions).  
-`MAX_POOL_SIZE` - the number of files to delete/upload concurrently. If not set the script will use the number of cores on your machine as the maximum concurrent tasks. Keep in mind, large number of concurrent tasks may slow donw your machine.
+`MAX_POOL_SIZE` - the number of files to delete/upload concurrently. If not set the script will use the number of cores on your machine as the maximum concurrent tasks. Keep in mind, large number of concurrent tasks may slow down your machine.
 
 Schedule a cronjob:
 
