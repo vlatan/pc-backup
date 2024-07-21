@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import time
 import json
 import boto3
 import psutil
@@ -172,40 +171,36 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
     data: dictionary of deleted, new and modified files
     Return: None
     """
-    # pair files with coresponding s3 function and sort to_upload by filesize
-    to_delete = {key: delete_s3_object for key in data.get("deleted", [])}
+    # files can be deleted in batches of max 1000 files per batch
+    to_delete = [{"Key": key} for key in data.get("deleted", [])]
+    to_delete = [to_delete[i : i + 1000] for i in range(0, len(to_delete), 1000)]
+    coros = [asyncio.to_thread(bulk_delete_s3_objects, lst) for lst in to_delete]
+
+    # sort the upload files by size
     to_upload = data.get("created", []) + data.get("modified", [])
     to_upload.sort(key=lambda f: Path(f).stat().st_size)
-    to_upload = {key: upload_s3_object for key in to_upload}
-    objects = to_delete | to_upload
-
-    # prepare coroutines for deletion and/or upload
-    coros = [asyncio.to_thread(func, key) for key, func in objects.items()]
+    coros += [asyncio.to_thread(upload_s3_object, key) for key in to_upload]
 
     # quick anonymous function for getting the number of current active tasks
     active_tasks = lambda: sum(1 for t in asyncio.all_tasks() if not t.done())
 
     # add tasks to group, the context will automatically await them
-    start = time.perf_counter()
     async with asyncio.TaskGroup() as tg:
         for coro in coros:
             while active_tasks() >= MAX_ACTIVE_TASKS:
                 await asyncio.sleep(0.25)
             tg.create_task(coro)
-    end = time.perf_counter()
-
-    # log summary results
-    logging.info(f"Processed {len(coros)} files. It took {end - start:.4f} seconds.")
-    logging.info(60 * "-")
 
 
-def delete_s3_object(key: str) -> None:
+def bulk_delete_s3_objects(keys: list[dict[str, str]]) -> None:
+    """
+    Delete multiple s3 objects with one HTTP request.
+    The limit is 1000 objects per request.
+    keys: list of dicts - {"Key": str}
+    """
     try:
-        response = CLIENT.delete_object(Bucket=BUCKET_NAME, Key=key)
-        status = response["ResponseMetadata"]["HTTPStatusCode"]
-        logging.info(f"{key}: DELETE - {status}")
+        CLIENT.delete_objects(Bucket=BUCKET_NAME, Delete={"Objects": keys})
     except (ClientError, BotoCoreError) as e:
-        logging.warning(f"{key}: FAIL")
         logging.error(e)
 
 
@@ -218,9 +213,7 @@ def upload_s3_object(key: str) -> None:
             Key=key,
             ExtraArgs={"StorageClass": STORAGE_CLASS},
         )
-        logging.info(f"{key}: UPLOAD")
     except (ClientError, BotoCoreError) as e:
-        logging.warning(f"{key}: FAIL")
         logging.error(e)
 
 
