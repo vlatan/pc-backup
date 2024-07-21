@@ -9,7 +9,7 @@ it deletes/uploads files from/to the S3 bucket accordingly.
 
 ## Prerequisites
 
-- Python.3.12+
+- [Python.3.12+](https://www.python.org/)
 - [AWS Account](https://aws.amazon.com/)
 - [S3 bucket](https://aws.amazon.com/s3/)
 - [IAM user and policy](https://docs.aws.amazon.com/AmazonS3/latest/dev/walkthrough1.html)
@@ -87,6 +87,10 @@ Schedule a cronjob:
 # run every minute
 */1 * * * * cd /path/to/pc-backup && .venv/bin/python backup.py >> logs/backup.out 2>&1
 ```
+
+## TODO:
+* Check if the index is consistent with the bucket on every run (needs a call to the bucket).
+* Check if the index has changed during a long running operation and abandon the operation if needed.
 
 ## License
 
