@@ -25,7 +25,7 @@ async def main() -> None:
     # perform initial setup
     init_set_up()
 
-    # sync directories with a bucket
+    # sync directories with a bucket dirs
     coros = [asyncio.to_thread(update_bucket, d) for d in DIRECTORIES]
     async with asyncio.TaskGroup() as tg:
         for coro in coros:
@@ -34,7 +34,7 @@ async def main() -> None:
 
 def get_excluded_dirs(root_dir: str) -> set[str]:
     """
-    Find dir paths that needs to be ignored as per the PREFIXES and SUFFIXES.
+    Find dir paths that need to be ignored as per the PREFIXES and SUFFIXES.
     Return: set of strings - paths to dirs.
     """
     excluded = set()
