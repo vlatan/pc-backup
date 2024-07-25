@@ -78,10 +78,10 @@ def compute_dir_index(root_dir: Path) -> dict[str, float]:
     Return: dictionary with files absolute paths and their last modified time
     """
     index = {}
+    # exclusion helper function
+    permitted = lambda x: not (x.startswith(PREFIXES) or x.endswith(SUFFIXES))
     # traverse the path recursively
     for current_dir_path, dir_names, file_names in root_dir.walk():
-        # exclusion helper function
-        permitted = lambda x: not (x.startswith(PREFIXES) or x.endswith(SUFFIXES))
         # copy of dir_names without excluded directories
         dir_names[:] = [d for d in dir_names if permitted(d)]
         # copy of file_names without excluded files
