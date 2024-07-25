@@ -81,11 +81,13 @@ Create `config.json` file and define several variables in a JSON document format
 `SUFFIXES` - list of suffixes to exclude files/folders with those suffixes (e.g. files with certain extensions).  
 `MAX_POOL_SIZE` - the number of files to delete/upload concurrently. If not set the script will use the number of cores on your machine as the maximum concurrent tasks. Keep in mind, large number of concurrent tasks may slow down your machine.
 
-Schedule a cronjob:
+Schedule a cronjob (run every minute) either using aws `cli` or `sdk`:
 
 ```
-# run every minute
-*/1 * * * * cd /path/to/pc-backup && .venv/bin/python backup.py >> logs/backup.out 2>&1
+*/1 * * * * cd /path/to/pc-backup && .venv/bin/python sdk.py >> logs/backup.out 2>&1
+```
+```
+*/1 * * * * cd /path/to/pc-backup && .venv/bin/python cli.py >> logs/backup.out 2>&1
 ```
 
 ## TODO:
