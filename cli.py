@@ -32,6 +32,23 @@ async def main() -> None:
             tg.create_task(coro)
 
 
+def get_excluded_dirs(root_dir: str) -> set[str]:
+    """
+    Find dir paths that needs to be ignored as per the PREFIXES and SUFFIXES.
+    Return: set of strings - paths to dirs.
+    """
+    excluded = set()
+    # exclusion helper function
+    permitted = lambda x: not (x.startswith(PREFIXES) or x.endswith(SUFFIXES))
+    for current_root, dir_names, _ in Path(root_dir).walk():
+        # update excluded_dirs
+        excluded |= {str(current_root / d) for d in dir_names if not permitted(d)}
+        # change dir_names var for the next recursion steps without excluded dirs
+        dir_names[:] = [d for d in dir_names if permitted(d)]
+
+    return excluded
+
+
 def update_bucket(directory: str) -> None:
     """Sync local directory with bucket directory."""
 
@@ -46,10 +63,16 @@ def update_bucket(directory: str) -> None:
         "--delete",
     ]
 
-    for prefix, suffix in zip_longest(PREFIXES, SUFFIXES):
-        cmd += ["--exclude", f"'{prefix}*'"] if prefix else []
-        cmd += ["--exclude", f"'*{suffix}'"] if suffix else []
+    # ignore dirs
+    for dir_path in get_excluded_dirs(directory):
+        cmd += ["--exclude", f"{dir_path}/*"]
 
+    # ignore files
+    for prefix, suffix in zip_longest(PREFIXES, SUFFIXES):
+        cmd += ["--exclude", f"{prefix}*"] if prefix else []
+        cmd += ["--exclude", f"*{suffix}"] if suffix else []
+
+    # run aws cli in child process
     result = subprocess.run(cmd, capture_output=True)
     if result.returncode != 0 and result.stderr:
         logging.error(result.stderr.decode())
