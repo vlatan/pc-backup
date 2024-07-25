@@ -1,6 +1,4 @@
-import os
 import sys
-import json
 import json
 import boto3
 import psutil
@@ -8,10 +6,11 @@ import asyncio
 import logging
 import botocore.config
 from pathlib import Path
+from utils import init_set_up
 from botocore.exceptions import ClientError, BotoCoreError
 
 
-# get config variables
+# read config file
 config = json.loads(Path("config.json").read_text())
 
 
@@ -20,7 +19,7 @@ DIRECTORIES = config.get("DIRECTORIES")
 BUCKET_NAME = config.get("BUCKET_NAME")
 STORAGE_CLASS = config.get("STORAGE_CLASS")
 PREFIXES = tuple(config.get("PREFIXES"))
-SUFFIXES = tuple(config.get("PREFIXES"))
+SUFFIXES = tuple(config.get("SUFFIXES"))
 MAX_ACTIVE_TASKS = int(config.get("MAX_POOL_SIZE", 0)) or psutil.cpu_count()
 
 
@@ -58,46 +57,6 @@ async def main() -> None:
 
     # save/overwrite the json index file with the fresh new index
     index_path.write_text(json.dumps(new_index, indent=4))
-
-
-def init_set_up() -> None:
-    """
-    Create `logs` folder if it doesn't exist.
-    Setup basic logging.
-    Exit if script is already running.
-    """
-    # ensure the logs folder exists
-    Path("logs").mkdir(parents=True, exist_ok=True)
-
-    # config logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        filename="logs/backup.out",
-    )
-
-    # if this script/file is already running exit
-    if is_running():
-        logging.warning("Attempted to run the script concurrently!")
-        logging.warning(60 * "-")
-        sys.exit()
-
-
-def is_running() -> bool:
-    """
-    Check if this script is already running.
-    Return: True if it's running, False otherwise
-    """
-    for q in psutil.process_iter():
-        if (
-            q.name().startswith("python")
-            and len(q.cmdline()) > 1
-            and sys.argv[0] in q.cmdline()[1]
-            and os.getpid() != q.pid
-        ):
-            return True
-    return False
 
 
 async def compute_index() -> dict[str, float]:
@@ -172,7 +131,7 @@ async def update_bucket(data: dict[str, list[str]]) -> None:
     Return: None
     """
     # files can be deleted in batches of max 1000 files per batch
-    to_delete = [{"Key": key} for key in data.get("deleted", [])]
+    to_delete = [{"Key": key.lstrip("/")} for key in data.get("deleted", [])]
     to_delete = [to_delete[i : i + 1000] for i in range(0, len(to_delete), 1000)]
     coros = [asyncio.to_thread(bulk_delete_s3_objects, lst) for lst in to_delete]
 
@@ -210,7 +169,7 @@ def upload_s3_object(key: str) -> None:
         CLIENT.upload_file(
             Filename=key,
             Bucket=BUCKET_NAME,
-            Key=key,
+            Key=key.lstrip("/"),
             ExtraArgs={"StorageClass": STORAGE_CLASS},
         )
     except (ClientError, BotoCoreError) as e:
