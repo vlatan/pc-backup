@@ -4,6 +4,8 @@ import psutil
 import logging
 from pathlib import Path
 
+import config as cfg
+
 
 def init_set_up() -> None:
     """
@@ -43,3 +45,8 @@ def is_running() -> bool:
         ):
             return True
     return False
+
+
+def permitted(item: str) -> bool:
+    """Check if the item starts with PREFIXES or ends with SUFFIXES."""
+    return not (item.startswith(cfg.PREFIXES) or item.endswith(cfg.SUFFIXES))

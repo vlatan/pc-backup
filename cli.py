@@ -1,22 +1,11 @@
-import json
 import logging
 import asyncio
 import subprocess
 from pathlib import Path
-from utils import init_set_up
 from itertools import zip_longest
 
-
-# read config file
-config = json.loads(Path("config.json").read_text())
-
-
-# get config vars
-DIRECTORIES = config.get("DIRECTORIES")
-BUCKET_NAME = config.get("BUCKET_NAME")
-STORAGE_CLASS = config.get("STORAGE_CLASS")
-PREFIXES = tuple(config.get("PREFIXES"))
-SUFFIXES = tuple(config.get("SUFFIXES"))
+import config as cfg
+from utils import init_set_up, permitted
 
 
 async def main() -> None:
@@ -26,7 +15,7 @@ async def main() -> None:
     init_set_up()
 
     # sync directories with a bucket dirs
-    coros = [asyncio.to_thread(update_bucket, d) for d in DIRECTORIES]
+    coros = [asyncio.to_thread(update_bucket, d) for d in cfg.DIRECTORIES]
     async with asyncio.TaskGroup() as tg:
         for coro in coros:
             tg.create_task(coro)
@@ -38,8 +27,6 @@ def get_excluded_dirs(root_dir: str) -> set[str]:
     Return: set of strings - paths to dirs.
     """
     excluded = set()
-    # exclusion helper function
-    permitted = lambda x: not (x.startswith(PREFIXES) or x.endswith(SUFFIXES))
     for current_root, dir_names, _ in Path(root_dir).walk():
         # update excluded_dirs
         excluded |= {str(current_root / d) for d in dir_names if not permitted(d)}
@@ -57,9 +44,9 @@ def update_bucket(directory: str) -> None:
         "s3",
         "sync",
         directory,
-        f"s3://{BUCKET_NAME}{directory}",
+        f"s3://{cfg.BUCKET_NAME}{directory}",
         "--storage-class",
-        STORAGE_CLASS,
+        cfg.STORAGE_CLASS,
         "--delete",
     ]
 
@@ -68,7 +55,7 @@ def update_bucket(directory: str) -> None:
         cmd += ["--exclude", f"{dir_path}/*"]
 
     # ignore files
-    for prefix, suffix in zip_longest(PREFIXES, SUFFIXES):
+    for prefix, suffix in zip_longest(cfg.PREFIXES, cfg.SUFFIXES):
         cmd += ["--exclude", f"{prefix}*"] if prefix else []
         cmd += ["--exclude", f"*{suffix}"] if suffix else []
 

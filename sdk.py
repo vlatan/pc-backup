@@ -1,33 +1,20 @@
-import json
 import boto3
-import psutil
 import asyncio
 import logging
 import hashlib
 import botocore.config
 from pathlib import Path
-from utils import init_set_up
 from botocore.exceptions import ClientError, BotoCoreError
 
-
-# read config file
-config = json.loads(Path("config.json").read_text())
-
-
-# get config vars
-DIRECTORIES = config.get("DIRECTORIES")
-BUCKET_NAME = config.get("BUCKET_NAME")
-STORAGE_CLASS = config.get("STORAGE_CLASS")
-PREFIXES = tuple(config.get("PREFIXES"))
-SUFFIXES = tuple(config.get("SUFFIXES"))
-MAX_ACTIVE_TASKS = int(config.get("MAX_POOL_SIZE", 0)) or psutil.cpu_count()
+import config as cfg
+from utils import init_set_up, permitted
 
 
 # setup boto3
-client_config = botocore.config.Config(max_pool_connections=MAX_ACTIVE_TASKS + 1)
+client_config = botocore.config.Config(max_pool_connections=cfg.MAX_ACTIVE_TASKS + 1)
 s3 = boto3.resource("s3", config=client_config)  # create an S3 resource
-BUCKET = s3.Bucket(BUCKET_NAME)  # instantiate an S3 bucket
-CLIENT = s3.meta.client  # instantiate an S3 low-level client (thread safe)
+s3_bucket = s3.Bucket(cfg.BUCKET_NAME)  # instantiate an S3 bucket
+s3_client = s3.meta.client  # instantiate an S3 low-level client (thread safe)
 
 
 async def main() -> None:
@@ -46,7 +33,7 @@ async def compute_index() -> set[str]:
     """Compute index on every dict concurrently."""
 
     # execute coroutines concurrently and await for all results to come
-    coros = [asyncio.to_thread(compute_dir_index, Path(d)) for d in DIRECTORIES]
+    coros = [asyncio.to_thread(compute_dir_index, Path(d)) for d in cfg.DIRECTORIES]
     async with asyncio.TaskGroup() as tg:
         tasks = [tg.create_task(coro) for coro in coros]
 
@@ -61,8 +48,6 @@ def compute_dir_index(root_dir: Path) -> set[str]:
     Return: set with files absolute paths
     """
     index = set()
-    # exclusion helper function
-    permitted = lambda x: not (x.startswith(PREFIXES) or x.endswith(SUFFIXES))
     # traverse the path recursively
     for current_root, dir_names, file_names in root_dir.walk():
         # copy of dir_names without excluded directories
@@ -86,7 +71,7 @@ async def update_bucket(index: set[str]) -> None:
     """
 
     # get all bucket files
-    all_bucket_objects = BUCKET.objects.all()
+    all_bucket_objects = s3_bucket.objects.all()
     bucket_files = set(f"/{f.key}" for f in all_bucket_objects)
 
     # files can be deleted in batches of max 1000 files per batch
@@ -120,7 +105,7 @@ async def update_bucket(index: set[str]) -> None:
     # add tasks to group, the context will automatically await them
     async with asyncio.TaskGroup() as tg:
         for coro in coros:
-            while active_tasks() >= MAX_ACTIVE_TASKS:
+            while active_tasks() >= cfg.MAX_ACTIVE_TASKS:
                 await asyncio.sleep(0.25)
             tg.create_task(coro)
 
@@ -132,7 +117,7 @@ def bulk_delete_s3_objects(keys: list[dict[str, str]]) -> None:
     keys: list of dicts - {"Key": str}
     """
     try:
-        CLIENT.delete_objects(Bucket=BUCKET_NAME, Delete={"Objects": keys})
+        s3_client.delete_objects(Bucket=cfg.BUCKET_NAME, Delete={"Objects": keys})
     except (ClientError, BotoCoreError) as e:
         logging.error(e)
 
@@ -140,11 +125,11 @@ def bulk_delete_s3_objects(keys: list[dict[str, str]]) -> None:
 def upload_s3_object(key: str) -> None:
     try:
         # on success response is None
-        CLIENT.upload_file(
+        s3_client.upload_file(
             Filename=key,
-            Bucket=BUCKET_NAME,
+            Bucket=cfg.BUCKET_NAME,
             Key=key.lstrip("/"),
-            ExtraArgs={"StorageClass": STORAGE_CLASS},
+            ExtraArgs={"StorageClass": cfg.STORAGE_CLASS},
         )
     except (ClientError, BotoCoreError) as e:
         logging.error(e)
