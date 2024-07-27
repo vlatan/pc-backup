@@ -70,33 +70,40 @@ async def update_bucket(index: set[str]) -> None:
     Return: None
     """
 
-    # get all bucket files
+    # get all bucket objects
     all_bucket_objects = s3_bucket.objects.all()
-    bucket_files = set(f"/{f.key}" for f in all_bucket_objects)
+
+    # which files to delete and/or upload
+    to_upload, to_delete = index, []
+
+    # compare the bucket objects to local files in the index
+    for obj in all_bucket_objects:
+
+        # if the file is not in the index, it needs to be removed from the bucket
+        if (key := f"/{obj.key}") not in index:
+            to_delete.append({"Key": obj.key})
+            continue
+
+        # If the file has a different size or a different e_tag,
+        # it neeeds to be reuploaded to the bucket.
+        try:
+            if obj.size != Path(key).stat().st_size:
+                continue
+            if obj.e_tag.strip('"') != e_tag(key):
+                continue
+        except OSError as e:
+            # the file was probably removed from the disk in the meantime
+            logging.error(e)
+
+        # otherwise do not reupload this file
+        to_upload.discard(key)
 
     # files can be deleted in batches of max 1000 files per batch
-    to_delete = [{"Key": key.lstrip("/")} for key in (bucket_files - index)]
     to_delete = [to_delete[i : i + 1000] for i in range(0, len(to_delete), 1000)]
     coros = [asyncio.to_thread(bulk_delete_s3_objects, lst) for lst in to_delete]
 
-    # which files to uplaod
-    to_upload = list(index - bucket_files)
-    for obj in all_bucket_objects:
-        if (key := f"/{obj.key}") not in index:
-            continue
-
-        if not (filepath := Path(key)).exists():
-            continue
-
-        if obj.size != filepath.stat().st_size:
-            to_upload.append(key)
-            continue
-
-        if obj.e_tag.strip('"') != e_tag(filepath):
-            to_upload.append(key)
-
     # sort upload files by size
-    to_upload.sort(key=lambda f: Path(f).stat().st_size)
+    to_upload = sorted(to_upload, key=lambda f: Path(f).stat().st_size)
     coros += [asyncio.to_thread(upload_s3_object, key) for key in to_upload]
 
     # quick anonymous function for getting the number of current active tasks
@@ -123,6 +130,7 @@ def bulk_delete_s3_objects(keys: list[dict[str, str]]) -> None:
 
 
 def upload_s3_object(key: str) -> None:
+    """Upload file to S3 bucket."""
     try:
         # on success response is None
         s3_client.upload_file(
@@ -131,11 +139,11 @@ def upload_s3_object(key: str) -> None:
             Key=key.lstrip("/"),
             ExtraArgs={"StorageClass": cfg.STORAGE_CLASS},
         )
-    except (ClientError, BotoCoreError) as e:
+    except (ClientError, BotoCoreError, OSError) as e:
         logging.error(e)
 
 
-def e_tag(filepath: Path) -> str:
+def e_tag(filepath: str) -> str:
     with open(filepath, "rb") as f:
         return hashlib.file_digest(f, "md5").hexdigest()
 
