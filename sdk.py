@@ -30,7 +30,10 @@ async def main() -> None:
 
 
 async def compute_index() -> set[str]:
-    """Compute index on every dict concurrently."""
+    """
+    Compute index on every directory concurrently.
+    Return: Set of local absolute file paths.
+    """
 
     # execute coroutines concurrently and await for all results to come
     coros = [asyncio.to_thread(compute_dir_index, Path(d)) for d in cfg.DIRECTORIES]
@@ -43,9 +46,9 @@ async def compute_index() -> set[str]:
 
 def compute_dir_index(root_dir: Path) -> set[str]:
     """
-    Computes a directory's index of files.
-    root_dir: absolute path to the root directory
-    Return: set with files absolute paths
+    Compute a directory's index of files.
+    root_dir: Absolute path to the root directory.
+    Return: Set of local absolute file paths.
     """
     index = set()
     # traverse the path recursively
@@ -57,43 +60,40 @@ def compute_dir_index(root_dir: Path) -> set[str]:
         # loop through the file names in the current directory
         for file_name in file_names:
             # add the file's absolute path to set
-            if (filepath := current_root / file_name).exists():
-                index.add(str(filepath))
+            if (file_path := current_root / file_name).exists():
+                index.add(str(file_path))
     return index
 
 
 async def update_bucket(index: set[str]) -> None:
     """
-    Create the needed S3 resources and instances and
-    delete/upload files concurrently.
-    data: dictionary of deleted, new and modified files
-    Return: None
+    Examine which files to upload/delete and do so in async.
+    index: Set of local absolute file paths.
+    Return: None.
     """
-
-    # get all bucket objects
-    all_bucket_objects = s3_bucket.objects.all()
 
     # which files to delete and/or upload
     to_upload, to_delete = index, []
 
     # compare the bucket objects to local files in the index
-    for obj in all_bucket_objects:
+    for obj in s3_bucket.objects.all():
 
-        # if the file is not in the index, it needs to be removed from the bucket
+        # if the bucket object is not in the index, remove from bucket
         if (key := f"/{obj.key}") not in index:
             to_delete.append({"Key": obj.key})
             continue
 
-        # If the file has a different size or a different e_tag,
-        # it neeeds to be reuploaded to the bucket.
-        try:
-            if obj.size != Path(key).stat().st_size:
-                continue
-            if obj.e_tag.strip('"') != e_tag(key):
-                continue
-        except OSError as e:
-            # the file was probably removed from the disk in the meantime
-            logging.error(e)
+        # if in the meantime the local file was removed,
+        # remove from bucket and do not reupload
+        if not (file_path := Path(key)).exists():
+            to_delete.append({"Key": obj.key})
+            to_upload.discard(key)
+            continue
+
+        # if the object has a different size or a different etag, reupload
+        file_size = file_path.stat().st_size
+        if obj.size != file_size or obj.e_tag.strip('"') != etag(key):
+            continue
 
         # otherwise do not reupload this file
         to_upload.discard(key)
@@ -101,9 +101,6 @@ async def update_bucket(index: set[str]) -> None:
     # files can be deleted in batches of max 1000 files per batch
     to_delete = [to_delete[i : i + 1000] for i in range(0, len(to_delete), 1000)]
     coros = [asyncio.to_thread(bulk_delete_s3_objects, lst) for lst in to_delete]
-
-    # sort upload files by size
-    to_upload = sorted(to_upload, key=lambda f: Path(f).stat().st_size)
     coros += [asyncio.to_thread(upload_s3_object, key) for key in to_upload]
 
     # quick anonymous function for getting the number of current active tasks
@@ -143,7 +140,7 @@ def upload_s3_object(key: str) -> None:
         logging.error(e)
 
 
-def e_tag(filepath: str) -> str:
+def etag(filepath: str) -> str:
     with open(filepath, "rb") as f:
         return hashlib.file_digest(f, "md5").hexdigest()
 
