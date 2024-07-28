@@ -106,7 +106,8 @@ async def update_bucket(index: set[str]) -> None:
     # quick anonymous function for getting the number of current active tasks
     active_tasks = lambda: sum(1 for t in asyncio.all_tasks() if not t.done())
 
-    # add tasks to group, the context will automatically await them
+    # add tasks to group, the context will automatically await the group
+    # upload/delete files in parallel up to the number of MAX_ACTIVE_TASKS
     async with asyncio.TaskGroup() as tg:
         for coro in coros:
             while active_tasks() >= cfg.MAX_ACTIVE_TASKS:
